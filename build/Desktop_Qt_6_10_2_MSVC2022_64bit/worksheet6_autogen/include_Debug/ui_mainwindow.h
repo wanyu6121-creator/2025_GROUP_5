@@ -12,9 +12,11 @@
 #include <QtCore/QVariant>
 #include <QtGui/QAction>
 #include <QtWidgets/QApplication>
+#include <QtWidgets/QCheckBox>
 #include <QtWidgets/QFrame>
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QHeaderView>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QMenuBar>
@@ -39,12 +41,20 @@ public:
     QHBoxLayout *horizontalLayout;
     QTreeView *treeView;
     QVTKOpenGLNativeWidget *widget;
-    QHBoxLayout *horizontalLayout_2;
+    QHBoxLayout *filterLayout;
+    QLabel *labelFilters;
+    QCheckBox *checkBoxClip;
+    QCheckBox *checkBoxShrink;
+    QSpacerItem *filterSpacer;
+    QHBoxLayout *buttonLayout;
     QPushButton *pushButton;
     QPushButton *pushButton_2;
     QFrame *line;
     QPushButton *pushButtonStartVR;
     QPushButton *pushButtonStopVR;
+    QFrame *line2;
+    QPushButton *pushButtonRotate;
+    QPushButton *pushButtonResetView;
     QSpacerItem *horizontalSpacer;
     QMenuBar *menubar;
     QMenu *menuFile;
@@ -55,7 +65,7 @@ public:
     {
         if (MainWindow->objectName().isEmpty())
             MainWindow->setObjectName("MainWindow");
-        MainWindow->resize(900, 600);
+        MainWindow->resize(960, 640);
         actionOpen_File = new QAction(MainWindow);
         actionOpen_File->setObjectName("actionOpen_File");
         QIcon icon;
@@ -74,7 +84,7 @@ public:
         treeView = new QTreeView(centralwidget);
         treeView->setObjectName("treeView");
         QSizePolicy sizePolicy(QSizePolicy::Policy::Fixed, QSizePolicy::Policy::Expanding);
-        sizePolicy.setHorizontalStretch(3);
+        sizePolicy.setHorizontalStretch(0);
         sizePolicy.setVerticalStretch(0);
         sizePolicy.setHeightForWidth(treeView->sizePolicy().hasHeightForWidth());
         treeView->setSizePolicy(sizePolicy);
@@ -96,46 +106,87 @@ public:
 
         verticalLayout->addLayout(horizontalLayout);
 
-        horizontalLayout_2 = new QHBoxLayout();
-        horizontalLayout_2->setObjectName("horizontalLayout_2");
+        filterLayout = new QHBoxLayout();
+        filterLayout->setObjectName("filterLayout");
+        labelFilters = new QLabel(centralwidget);
+        labelFilters->setObjectName("labelFilters");
+
+        filterLayout->addWidget(labelFilters);
+
+        checkBoxClip = new QCheckBox(centralwidget);
+        checkBoxClip->setObjectName("checkBoxClip");
+
+        filterLayout->addWidget(checkBoxClip);
+
+        checkBoxShrink = new QCheckBox(centralwidget);
+        checkBoxShrink->setObjectName("checkBoxShrink");
+
+        filterLayout->addWidget(checkBoxShrink);
+
+        filterSpacer = new QSpacerItem(40, 20, QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Minimum);
+
+        filterLayout->addItem(filterSpacer);
+
+
+        verticalLayout->addLayout(filterLayout);
+
+        buttonLayout = new QHBoxLayout();
+        buttonLayout->setObjectName("buttonLayout");
         pushButton = new QPushButton(centralwidget);
         pushButton->setObjectName("pushButton");
 
-        horizontalLayout_2->addWidget(pushButton);
+        buttonLayout->addWidget(pushButton);
 
         pushButton_2 = new QPushButton(centralwidget);
         pushButton_2->setObjectName("pushButton_2");
 
-        horizontalLayout_2->addWidget(pushButton_2);
+        buttonLayout->addWidget(pushButton_2);
 
         line = new QFrame(centralwidget);
         line->setObjectName("line");
         line->setFrameShape(QFrame::Shape::VLine);
         line->setFrameShadow(QFrame::Shadow::Sunken);
 
-        horizontalLayout_2->addWidget(line);
+        buttonLayout->addWidget(line);
 
         pushButtonStartVR = new QPushButton(centralwidget);
         pushButtonStartVR->setObjectName("pushButtonStartVR");
 
-        horizontalLayout_2->addWidget(pushButtonStartVR);
+        buttonLayout->addWidget(pushButtonStartVR);
 
         pushButtonStopVR = new QPushButton(centralwidget);
         pushButtonStopVR->setObjectName("pushButtonStopVR");
 
-        horizontalLayout_2->addWidget(pushButtonStopVR);
+        buttonLayout->addWidget(pushButtonStopVR);
+
+        line2 = new QFrame(centralwidget);
+        line2->setObjectName("line2");
+        line2->setFrameShape(QFrame::Shape::VLine);
+        line2->setFrameShadow(QFrame::Shadow::Sunken);
+
+        buttonLayout->addWidget(line2);
+
+        pushButtonRotate = new QPushButton(centralwidget);
+        pushButtonRotate->setObjectName("pushButtonRotate");
+
+        buttonLayout->addWidget(pushButtonRotate);
+
+        pushButtonResetView = new QPushButton(centralwidget);
+        pushButtonResetView->setObjectName("pushButtonResetView");
+
+        buttonLayout->addWidget(pushButtonResetView);
 
         horizontalSpacer = new QSpacerItem(40, 20, QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Minimum);
 
-        horizontalLayout_2->addItem(horizontalSpacer);
+        buttonLayout->addItem(horizontalSpacer);
 
 
-        verticalLayout->addLayout(horizontalLayout_2);
+        verticalLayout->addLayout(buttonLayout);
 
         MainWindow->setCentralWidget(centralwidget);
         menubar = new QMenuBar(MainWindow);
         menubar->setObjectName("menubar");
-        menubar->setGeometry(QRect(0, 0, 900, 22));
+        menubar->setGeometry(QRect(0, 0, 960, 22));
         menuFile = new QMenu(menubar);
         menuFile->setObjectName("menuFile");
         MainWindow->setMenuBar(menubar);
@@ -163,15 +214,26 @@ public:
 #if QT_CONFIG(tooltip)
         actionItem_Options->setToolTip(QCoreApplication::translate("MainWindow", "Item Options", nullptr));
 #endif // QT_CONFIG(tooltip)
+        labelFilters->setText(QCoreApplication::translate("MainWindow", "Filters:", nullptr));
+        checkBoxClip->setText(QCoreApplication::translate("MainWindow", "Clip", nullptr));
+        checkBoxShrink->setText(QCoreApplication::translate("MainWindow", "Shrink", nullptr));
         pushButton->setText(QCoreApplication::translate("MainWindow", "Add Item", nullptr));
         pushButton_2->setText(QCoreApplication::translate("MainWindow", "Item Options", nullptr));
         pushButtonStartVR->setText(QCoreApplication::translate("MainWindow", "Start VR", nullptr));
 #if QT_CONFIG(tooltip)
-        pushButtonStartVR->setToolTip(QCoreApplication::translate("MainWindow", "Start VR rendering (HTC Vive)", nullptr));
+        pushButtonStartVR->setToolTip(QCoreApplication::translate("MainWindow", "Start VR rendering on HTC Vive", nullptr));
 #endif // QT_CONFIG(tooltip)
         pushButtonStopVR->setText(QCoreApplication::translate("MainWindow", "Stop VR", nullptr));
 #if QT_CONFIG(tooltip)
         pushButtonStopVR->setToolTip(QCoreApplication::translate("MainWindow", "Stop VR rendering", nullptr));
+#endif // QT_CONFIG(tooltip)
+        pushButtonRotate->setText(QCoreApplication::translate("MainWindow", "Start Rotate", nullptr));
+#if QT_CONFIG(tooltip)
+        pushButtonRotate->setToolTip(QCoreApplication::translate("MainWindow", "Toggle model rotation in VR", nullptr));
+#endif // QT_CONFIG(tooltip)
+        pushButtonResetView->setText(QCoreApplication::translate("MainWindow", "Reset View", nullptr));
+#if QT_CONFIG(tooltip)
+        pushButtonResetView->setToolTip(QCoreApplication::translate("MainWindow", "Reset VR camera to initial position", nullptr));
 #endif // QT_CONFIG(tooltip)
         menuFile->setTitle(QCoreApplication::translate("MainWindow", "File", nullptr));
         toolBar->setWindowTitle(QCoreApplication::translate("MainWindow", "toolBar", nullptr));

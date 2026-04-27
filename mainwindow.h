@@ -22,7 +22,7 @@ public:
     ~MainWindow();
 
 public slots:
-    /** 原有槽函数 */
+    /* ---- 原有槽函数 ---- */
     void handleButton();
     void handleTreeClicked();
     void on_actionOpen_File_triggered();
@@ -31,17 +31,34 @@ public slots:
     void updateRender();
     void updateRenderFromTree(const QModelIndex& index);
 
-    /** 【阶段一】启动VR渲染线程 */
+    /** 裁剪滤镜复选框切换
+     * @param checked true表示勾选
+     */
+    void handleClipToggle(bool checked);
+
+    /** 收缩滤镜复选框切换
+     * @param checked true表示勾选
+     */
+    void handleShrinkToggle(bool checked);
+
+    /* ---- VR控制槽函数 ---- */
+    /** 启动VR渲染线程 */
     void handleStartVR();
 
-    /** 【阶段一】停止VR渲染线程 */
+    /** 停止VR渲染线程 */
     void handleStopVR();
+
+    /** 开始/停止VR场景中的模型旋转动画 */
+    void handleToggleRotate();
+
+    /** 重置VR相机视角到初始位置 */
+    void handleResetView();
 
 signals:
     void statusUpdateMessage(const QString& message, int timeout);
 
 private:
-    /** 遍历整棵树，为每个已加载STL的零件创建VR独立Actor并加入vrThread */
+    /** 遍历整棵树，为每个已加载STL的零件创建独立VR Actor */
     void populateVRActors();
 
     /** 递归辅助：遍历树节点收集VR Actor
@@ -56,6 +73,9 @@ private:
 
     /** VR渲染线程实例，nullptr表示VR未运行 */
     VRRenderThread*                              vrThread;
+
+    /** 旋转动画当前状态，用于切换按钮文字 */
+    bool                                         isVRRotating;
 };
 
 #endif // MAINWINDOW_H

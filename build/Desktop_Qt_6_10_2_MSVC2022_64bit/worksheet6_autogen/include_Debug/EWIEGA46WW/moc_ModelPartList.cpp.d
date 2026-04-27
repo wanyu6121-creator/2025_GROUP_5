@@ -23,6 +23,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCellType.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCellTypeUtilities.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCellTypes.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkClipDataSet.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkColor.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCommonCoreModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCommonDataModelModule.h \
@@ -38,11 +39,13 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataArrayValueRange_Generic.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataObject.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataSet.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataSetMapper.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDebugLeaksManager.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDebugRangeIterators.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDeprecation.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkFeatures.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkFiltersCoreModule.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkFiltersGeneralModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkGenericCell.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkGenericDataArray.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkGenericDataArray.txx \
@@ -55,6 +58,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitArray.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitArray.txx \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitArrayTraits.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitFunction.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIndent.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIntArray.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkLogger.h \
@@ -71,18 +75,21 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkObjectBase.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkObjectFactory.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkOptions.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPlane.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPlatform.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPointSet.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPoints.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPolyData.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPolyDataAlgorithm.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPolyDataInternals.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPolyDataMapper.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkProp.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkProp3D.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkRenderingCoreModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkResourceStream.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSTLReader.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSetGet.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkShrinkFilter.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSmartPointer.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSmartPointerBase.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkStdString.h \
@@ -97,6 +104,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkTypeListMacros.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkTypeTraits.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkUnsignedCharArray.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkUnstructuredGridAlgorithm.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkVariant.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkVariantCast.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkVariantInlineOperators.h \

@@ -3,20 +3,22 @@
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
   <property name="geometry">
-   <rect><x>0</x><y>0</y><width>900</width><height>600</height></rect>
+   <rect><x>0</x><y>0</y><width>960</width><height>640</height></rect>
   </property>
   <property name="windowTitle">
    <string>EEEE2076 VR Viewer</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
+
+    <!-- 主体区域：TreeView + VTK窗口 -->
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
        <widget class="QTreeView" name="treeView">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
-          <horstretch>3</horstretch><verstretch>0</verstretch>
+          <horstretch>0</horstretch><verstretch>0</verstretch>
          </sizepolicy>
         </property>
         <property name="maximumSize">
@@ -38,8 +40,41 @@
       </item>
      </layout>
     </item>
+
+    <!-- 滤镜控制行 -->
     <item>
-     <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <layout class="QHBoxLayout" name="filterLayout">
+      <item>
+       <widget class="QLabel" name="labelFilters">
+        <property name="text"><string>Filters:</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkBoxClip">
+        <property name="text"><string>Clip</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkBoxShrink">
+        <property name="text"><string>Shrink</string></property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="filterSpacer">
+        <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+        <property name="sizeHint" stdset="0">
+         <size><width>40</width><height>20</height></size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </item>
+
+    <!-- 操作按钮行 -->
+    <item>
+     <layout class="QHBoxLayout" name="buttonLayout">
+
+      <!-- 原有按钮 -->
       <item>
        <widget class="QPushButton" name="pushButton">
         <property name="text"><string>Add Item</string></property>
@@ -50,16 +85,20 @@
         <property name="text"><string>Item Options</string></property>
        </widget>
       </item>
+
+      <!-- 分隔线 -->
       <item>
        <widget class="QFrame" name="line">
         <property name="frameShape"><enum>QFrame::Shape::VLine</enum></property>
         <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
        </widget>
       </item>
+
+      <!-- VR控制按钮 -->
       <item>
        <widget class="QPushButton" name="pushButtonStartVR">
         <property name="text"><string>Start VR</string></property>
-        <property name="toolTip"><string>Start VR rendering (HTC Vive)</string></property>
+        <property name="toolTip"><string>Start VR rendering on HTC Vive</string></property>
        </widget>
       </item>
       <item>
@@ -68,6 +107,29 @@
         <property name="toolTip"><string>Stop VR rendering</string></property>
        </widget>
       </item>
+
+      <!-- 分隔线 -->
+      <item>
+       <widget class="QFrame" name="line2">
+        <property name="frameShape"><enum>QFrame::Shape::VLine</enum></property>
+        <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
+       </widget>
+      </item>
+
+      <!-- 动画控制按钮（阶段三新增）-->
+      <item>
+       <widget class="QPushButton" name="pushButtonRotate">
+        <property name="text"><string>Start Rotate</string></property>
+        <property name="toolTip"><string>Toggle model rotation in VR</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="pushButtonResetView">
+        <property name="text"><string>Reset View</string></property>
+        <property name="toolTip"><string>Reset VR camera to initial position</string></property>
+       </widget>
+      </item>
+
       <item>
        <spacer name="horizontalSpacer">
         <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
@@ -78,11 +140,13 @@
       </item>
      </layout>
     </item>
+
    </layout>
   </widget>
+
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
-    <rect><x>0</x><y>0</y><width>900</width><height>22</height></rect>
+    <rect><x>0</x><y>0</y><width>960</width><height>22</height></rect>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title"><string>File</string></property>
@@ -90,13 +154,16 @@
    </widget>
    <addaction name="menuFile"/>
   </widget>
+
   <widget class="QStatusBar" name="statusbar"/>
+
   <widget class="QToolBar" name="toolBar">
    <property name="windowTitle"><string>toolBar</string></property>
    <attribute name="toolBarArea"><enum>TopToolBarArea</enum></attribute>
    <attribute name="toolBarBreak"><bool>false</bool></attribute>
    <addaction name="actionOpen_File"/>
   </widget>
+
   <action name="actionOpen_File">
    <property name="icon">
     <iconset resource="icons.qrc">
@@ -106,11 +173,13 @@
    <property name="text"><string>Open File</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
+
   <action name="actionItem_Options">
    <property name="text"><string>Item Options</string></property>
    <property name="toolTip"><string>Item Options</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
+
  </widget>
  <customwidgets>
   <customwidget>
