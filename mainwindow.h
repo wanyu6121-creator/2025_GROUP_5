@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QMap>
 #include "ModelPartList.h"
 #include "VRRenderThread.h"
 
@@ -42,40 +43,53 @@ public slots:
     void handleShrinkToggle(bool checked);
 
     /* ---- VR控制槽函数 ---- */
-    /** 启动VR渲染线程 */
+    /** 启动VR渲染线程（自动遍历树并注册所有Actor）*/
     void handleStartVR();
 
     /** 停止VR渲染线程 */
     void handleStopVR();
 
-    /** 开始/停止VR场景中的模型旋转动画 */
+    /** 切换VR场景旋转动画开/关 */
     void handleToggleRotate();
 
-    /** 重置VR相机视角到初始位置 */
+    /** 重置VR相机视角 */
     void handleResetView();
 
 signals:
     void statusUpdateMessage(const QString& message, int timeout);
 
 private:
-    /** 遍历整棵树，为每个已加载STL的零件创建独立VR Actor */
+    /** 遍历整棵树，为每个已加载STL的零件创建VR Actor并注册到vrThread
+     *  同时填充 actorIndexMap（ModelPart指针 → actorIndex）
+     */
     void populateVRActors();
 
-    /** 递归辅助：遍历树节点收集VR Actor
+    /** 递归辅助：遍历树节点，收集VR Actor
      * @param index 当前节点的QModelIndex
      */
     void populateVRActorsFromTree(const QModelIndex& index);
 
-    Ui::MainWindow*                              ui;
-    ModelPartList*                               partList;
-    vtkSmartPointer<vtkRenderer>                 renderer;
-    vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow;
+    /** 查找零件在vrThread中注册的actorIndex
+     *  @param part ModelPart指针
+     *  @return actorIndex（未注册返回-1）
+     */
+    int getActorIndex(ModelPart* part) const;
+
+    Ui::MainWindow*                               ui;
+    ModelPartList*                                partList;
+    vtkSmartPointer<vtkRenderer>                  renderer;
+    vtkSmartPointer<vtkGenericOpenGLRenderWindow>  renderWindow;
 
     /** VR渲染线程实例，nullptr表示VR未运行 */
-    VRRenderThread*                              vrThread;
+    VRRenderThread*                               vrThread;
 
     /** 旋转动画当前状态，用于切换按钮文字 */
-    bool                                         isVRRotating;
+    bool                                          isVRRotating;
+
+    /** ModelPart指针 → VR actorIndex 映射表
+     *  用于将GUI操作精确路由到对应的VR Actor
+     */
+    QMap<ModelPart*, int>                         actorIndexMap;
 };
 
 #endif // MAINWINDOW_H

@@ -248,9 +248,9 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files/Microsoft\ Visual\ Studio/18/Community/VC/Tools/MSVC/14.50.35717/include/yvals_core.h \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QAbstractItemModel \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QList \
+  C:/Qt/6.10.2/msvc2022_64/include/QtCore/QMap \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QModelIndex \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QMutex \
-  C:/Qt/6.10.2/msvc2022_64/include/QtCore/QPair \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QQueue \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QString \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QThread \

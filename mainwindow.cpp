@@ -22,7 +22,6 @@ MainWindow::MainWindow(QWidget* parent)
     ui->setupUi(this);
 
     /* ---- 原有信号槽 ---- */
-    /* 【修复问题1】Add Item按钮改为触发文件加载，与菜单Open File相同 */
     connect(ui->pushButton,   &QPushButton::released,
             this, &MainWindow::on_actionOpen_File_triggered);
     connect(ui->pushButton_2, &QPushButton::released,
@@ -81,7 +80,7 @@ MainWindow::~MainWindow()
 {
     if (vrThread != nullptr && vrThread->isRunning()) {
         vrThread->requestInterruption();
-        vrThread->wait(3000);
+        vrThread->wait(5000);
     }
     delete vrThread;
     delete ui;
@@ -97,18 +96,24 @@ void MainWindow::handleStartVR()
         return;
     }
 
+    /* 停止并清理上一次的线程实例（支持多次重启）*/
     if (vrThread != nullptr) {
         delete vrThread;
         vrThread = nullptr;
     }
 
+    /* 清空索引映射（每次启动重新建立）*/
+    actorIndexMap.clear();
+
     isVRRotating = false;
     ui->pushButtonRotate->setText("Start Rotate");
 
     vrThread = new VRRenderThread(this);
-    populateVRActors();
-    vrThread->start();
 
+    /* 遍历树，为每个已加载STL的零件创建VR Actor并注册 */
+    populateVRActors();
+
+    vrThread->start();
     emit statusUpdateMessage("VR started! Put on your headset.", 0);
 }
 
@@ -173,11 +178,11 @@ void MainWindow::handleResetView()
 }
 
 /* ================================================================
- * 遍历树，为每个已加载STL的零件创建VR Actor
+ * 遍历树，为每个已加载STL的零件创建VR Actor并注册到vrThread
  * ================================================================ */
 void MainWindow::populateVRActors()
 {
-    if (vrThread == nullptr) return;
+    if (!vrThread) return;
 
     int topLevelRows = partList->rowCount(QModelIndex());
     for (int i = 0; i < topLevelRows; i++) {
@@ -193,7 +198,15 @@ void MainWindow::populateVRActorsFromTree(const QModelIndex& index)
 
     vtkActor* vrActor = part->getNewActor();
     if (vrActor != nullptr) {
-        vrThread->addActorOffline(vrActor);
+        /* 注册Actor时同时传入reader和初始滤镜状态，
+         * 这样VR线程可以在收到CMD_APPLY_FILTER时正确重建pipeline */
+        int idx = vrThread->addActorOffline(
+            vrActor,
+            part->getReader(),
+            part->getClip(),
+            part->getShrink()
+        );
+        actorIndexMap.insert(part, idx);
     }
 
     if (partList->hasChildren(index)) {
@@ -204,14 +217,17 @@ void MainWindow::populateVRActorsFromTree(const QModelIndex& index)
     }
 }
 
+int MainWindow::getActorIndex(ModelPart* part) const
+{
+    return actorIndexMap.value(part, -1);
+}
+
 /* ================================================================
  * 原有函数
  * ================================================================ */
 
 void MainWindow::handleButton()
 {
-    /* 此函数保留但不再使用，Add Item按钮已直接连接到
-     * on_actionOpen_File_triggered */
     emit statusUpdateMessage("Add button was clicked", 0);
 }
 
@@ -236,7 +252,7 @@ void MainWindow::on_actionOpen_File_triggered()
     QString fileName = QFileDialog::getOpenFileName(
         this, tr("Open File"), "C:\\",
         tr("STL Files (*.stl);;Text Files (*.txt)")
-        );
+    );
 
     if (!fileName.isEmpty()) {
         QFileInfo fileInfo(fileName);
@@ -272,40 +288,34 @@ void MainWindow::handleOptionsButton()
     ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
     OptionDialog dialog(this);
 
-    /* ----------------------------------------------------------------
-     * 【修复问题2】setInitialData参数顺序修正
-     *
-     * optiondialog.h 声明为：
-     *   setInitialData(name, r, g, b, visible)
-     *
-     * 之前错误地传入：
-     *   setInitialData(name, visible, r, g, b)  ← 错误
-     *
-     * 修正为正确顺序：
-     *   setInitialData(name, r, g, b, visible)  ← 正确
-     * ---------------------------------------------------------------- */
     dialog.setInitialData(
-        selectedPart->data(0).toString(),   /* name    */
-        selectedPart->getColourR(),          /* r       */
-        selectedPart->getColourG(),          /* g       */
-        selectedPart->getColourB(),          /* b       */
-        selectedPart->visible()              /* visible */
-        );
+        selectedPart->data(0).toString(),
+        selectedPart->getColourR(),
+        selectedPart->getColourG(),
+        selectedPart->getColourB(),
+        selectedPart->visible()
+    );
 
     if (dialog.exec() == QDialog::Accepted) {
         selectedPart->set(0, dialog.getName());
-        selectedPart->setVisible(dialog.getIsVisible());
+
+        /* 更新可见性 */
+        bool newVisible = dialog.getIsVisible();
+        selectedPart->setVisible(newVisible);
+
+        /* 更新颜色（写入共享Property，VR Actor自动同步）*/
         selectedPart->setColour(
             static_cast<unsigned char>(dialog.getR()),
             static_cast<unsigned char>(dialog.getG()),
             static_cast<unsigned char>(dialog.getB())
-            );
+        );
 
-        /* 颜色通过共享Property自动同步到VR */
-        /* 可见性需要通过命令队列通知VR线程 */
+        /* 向VR线程发送可见性命令（精确定位到对应Actor）*/
         if (vrThread != nullptr && vrThread->isRunning()) {
+            int idx = getActorIndex(selectedPart);
             vrThread->issueCommand(CMD_SET_VISIBLE,
-                                   dialog.getIsVisible() ? 1.0 : 0.0);
+                                   newVisible ? 1.0 : 0.0,
+                                   idx);
         }
 
         renderWindow->Render();
@@ -319,6 +329,10 @@ void MainWindow::on_actionItem_Options_triggered()
 {
     handleOptionsButton();
 }
+
+/* ================================================================
+ * 过滤器切换（GUI侧 + 同步到VR）
+ * ================================================================ */
 
 void MainWindow::handleClipToggle(bool checked)
 {
@@ -335,6 +349,13 @@ void MainWindow::handleClipToggle(bool checked)
     ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
     selectedPart->setClip(checked);
     updateRender();
+
+    /* 同步到VR线程：value = filterType*10 + enabled */
+    if (vrThread != nullptr && vrThread->isRunning()) {
+        int idx = getActorIndex(selectedPart);
+        double value = FILTER_CLIP * 10.0 + (checked ? 1.0 : 0.0);
+        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+    }
 
     emit statusUpdateMessage(
         checked ? QString("Clip filter applied to: ") + selectedPart->data(0).toString()
@@ -358,11 +379,22 @@ void MainWindow::handleShrinkToggle(bool checked)
     selectedPart->setShrink(checked);
     updateRender();
 
+    /* 同步到VR线程：value = filterType*10 + enabled */
+    if (vrThread != nullptr && vrThread->isRunning()) {
+        int idx = getActorIndex(selectedPart);
+        double value = FILTER_SHRINK * 10.0 + (checked ? 1.0 : 0.0);
+        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+    }
+
     emit statusUpdateMessage(
         checked ? QString("Shrink filter applied to: ") + selectedPart->data(0).toString()
                 : QString("Shrink filter removed from: ") + selectedPart->data(0).toString(),
         2000);
 }
+
+/* ================================================================
+ * 渲染树遍历
+ * ================================================================ */
 
 void MainWindow::updateRender()
 {

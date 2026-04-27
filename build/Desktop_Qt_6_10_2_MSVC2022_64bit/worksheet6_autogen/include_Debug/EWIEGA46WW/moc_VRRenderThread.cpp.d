@@ -8,6 +8,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkAbstractCellLinks.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkAbstractMapper.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkAbstractMapper3D.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkAbstractPolyDataReader.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkActor.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkActorCollection.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkAffineArray.h \
@@ -25,6 +26,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCellType.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCellTypeUtilities.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCellTypes.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkClipDataSet.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCollection.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCommand.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkCommonCoreModule.h \
@@ -42,17 +44,21 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataArrayValueRange_Generic.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataObject.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataSet.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDataSetMapper.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDebugLeaksManager.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDebugRangeIterators.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkDeprecation.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkEventData.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkFeatures.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkFiltersCoreModule.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkFiltersGeneralModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkFiltersSourcesModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkGenericCell.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkGenericDataArray.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkGenericDataArray.txx \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkGenericDataArrayLookupHelper.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIOCoreModule.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIOGeometryModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIOImageModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIOStream.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIdList.h \
@@ -61,6 +67,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitArray.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitArray.txx \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitArrayTraits.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkImplicitFunction.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIndent.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkIntArray.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkLight.h \
@@ -92,6 +99,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPBRIrradianceTexture.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPBRLUTTexture.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPBRPrefilterTexture.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPlane.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPlaneSource.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPlatform.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkPointSet.h \
@@ -115,8 +123,11 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkRenderingOpenVRModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkRenderingUIModule.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkRenderingVRModule.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkResourceStream.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSTLReader.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSelection.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSetGet.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkShrinkFilter.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSmartPointer.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkSmartPointerBase.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkStdString.h \
@@ -132,6 +143,7 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkTypeListMacros.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkTypeTraits.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkUnsignedCharArray.h \
+  C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkUnstructuredGridAlgorithm.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkVRCamera.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkVRHMDCamera.h \
   C:/Program\ Files\ (x86)/VTK/include/vtk-9.6/vtkVRRenderWindow.h \
@@ -232,7 +244,6 @@ C:/Users/LLR\ User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/w
   C:/Program\ Files/Microsoft\ Visual\ Studio/18/Community/VC/Tools/MSVC/14.50.35717/include/yvals.h \
   C:/Program\ Files/Microsoft\ Visual\ Studio/18/Community/VC/Tools/MSVC/14.50.35717/include/yvals_core.h \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QMutex \
-  C:/Qt/6.10.2/msvc2022_64/include/QtCore/QPair \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QQueue \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/QThread \
   C:/Qt/6.10.2/msvc2022_64/include/QtCore/q17memory.h \

@@ -74,6 +74,7 @@ public:
     int row() const;
 
     /** 设置零件颜色（RGB 0-255）
+     * 颜色直接写入共享Property，VR Actor自动同步。
      * @param R 红色分量
      * @param G 绿色分量
      * @param B 蓝色分量
@@ -84,7 +85,7 @@ public:
     unsigned char getColourG(); /**< @return 绿色分量 0-255 */
     unsigned char getColourB(); /**< @return 蓝色分量 0-255 */
 
-    /** 设置可见性
+    /** 设置可见性（仅更新GUI侧Actor；VR侧通过命令队列同步）
      * @param isVisible true表示可见
      */
     void setVisible(bool isVisible);
@@ -92,38 +93,41 @@ public:
     /** 获取可见性 @return true表示可见 */
     bool visible();
 
-    /** 加载STL文件，创建完整VTK pipeline（包含滤镜）
+    /** 加载STL文件，创建完整VTK pipeline（包含滤镜占位）
      * @param fileName STL文件完整路径
      */
     void loadSTL(QString fileName);
 
     /** 获取GUI侧Actor（用于QVtkOpenGLNativeWidget渲染）
-     * @return GUI Actor智能指针
+     * @return GUI Actor智能指针，未加载STL时返回nullptr
      */
     vtkSmartPointer<vtkActor> getActor();
+
+    /** 获取STL读取器指针（供VRRenderThread注册，实现过滤器同步）
+     * @return STLReader裸指针，未加载STL时返回nullptr
+     */
+    vtkSTLReader* getReader() { return file.Get(); }
 
     /** 为VR创建独立的新Actor
      *
      *  为同一个STLReader创建新的Mapper和Actor，
-     *  并根据当前滤镜状态（isClipped/isShrunk）构建对应的VR pipeline。
-     *  通过SetProperty共享属性，使颜色修改自动同步到VR。
+     *  通过SetProperty共享属性，颜色修改自动同步到VR。
      *
-     *  注意：滤镜状态在VR Actor创建时快照，后续滤镜变化需通过
-     *  VRRenderThread命令队列通知VR线程重建pipeline。
+     *  注意：此函数只创建actor并设置好初始pipeline；
+     *  后续过滤器变化通过 VRRenderThread::issueCommand(CMD_APPLY_FILTER)
+     *  通知VR线程调用 rebuildPipeline() 重建。
      *
-     *  @return 新Actor裸指针（由VRRenderThread接管生命周期），
+     *  @return 新Actor裸指针（调用方负责生命周期），
      *          未加载STL时返回nullptr
      */
     vtkActor* getNewActor();
 
-    /** 启用或禁用裁剪滤镜
-     *  在x=0处沿x轴法线方向裁剪几何体
+    /** 启用或禁用裁剪滤镜（GUI侧）
      *  @param enabled true启用，false禁用
      */
     void setClip(bool enabled);
 
-    /** 启用或禁用收缩滤镜
-     *  将每个cell向其质心收缩固定比例
+    /** 启用或禁用收缩滤镜（GUI侧）
      *  @param enabled true启用，false禁用
      */
     void setShrink(bool enabled);
@@ -137,7 +141,6 @@ public:
 private:
     /** 根据当前滤镜状态重新连接GUI侧VTK pipeline
      *  路由：STLReader → [ClipFilter] → [ShrinkFilter] → Mapper
-     *  滤镜flag为false时对应滤镜被跳过
      */
     void updatePipeline();
 
