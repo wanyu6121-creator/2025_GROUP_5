@@ -1,0 +1,36 @@
+^C:\USERS\LLR USER\DESKTOP\2025_GROUP_5\BUILD\DESKTOP_QT_6_10_2_MSVC2022_64BIT\CMAKEFILES\A6C9C396F1E480D1046D2DFF4F41B506\AUTOUIC_(CONFIG).STAMP.RULE
+setlocal
+cd "C:\Users\LLR User\Desktop\2025_GROUP_5\build\Desktop_Qt_6_10_2_MSVC2022_64bit"
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\LLR USER\DESKTOP\2025_GROUP_5\BUILD\DESKTOP_QT_6_10_2_MSVC2022_64BIT\CMAKEFILES\E69C487AC66100EE228C9528BAEFD136\QRC_ICONS.CPP.RULE
+setlocal
+cd "C:\Users\LLR User\Desktop\2025_GROUP_5\build\Desktop_Qt_6_10_2_MSVC2022_64bit"
+if %errorlevel% neq 0 goto :cmEnd
+C:
+if %errorlevel% neq 0 goto :cmEnd
+"C:\Program Files\CMake\bin\cmake.exe" -E cmake_autorcc "C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/worksheet6_autogen.dir/AutoRcc_icons_EWIEGA46WW_Info.json" Debug
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^C:\USERS\LLR USER\DESKTOP\2025_GROUP_5\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/LLR User/Desktop/2025_GROUP_5" "-BC:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit" --check-stamp-file "C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

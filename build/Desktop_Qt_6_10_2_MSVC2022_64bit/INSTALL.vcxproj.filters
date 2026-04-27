@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\LLR User\Desktop\2025_GROUP_5\build\Desktop_Qt_6_10_2_MSVC2022_64bit\CMakeFiles\7bdb898dab0ae598b88a35c09304981c\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{8501A331-15A7-3ADC-82B5-0E3EE6845A52}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

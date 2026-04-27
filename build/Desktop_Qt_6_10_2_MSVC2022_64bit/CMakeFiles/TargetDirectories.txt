@@ -1,0 +1,5 @@
+C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/worksheet6.dir
+C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/VRBindings.dir
+C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/INSTALL.dir
+C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/ALL_BUILD.dir
+C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/ZERO_CHECK.dir

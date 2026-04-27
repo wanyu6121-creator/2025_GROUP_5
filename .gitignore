@@ -1,0 +1,8 @@
+cd "C:\Users\LLR User\Desktop\2025_GROUP_5"
+echo build/ > .gitignore
+echo .qtcreator/ >> .gitignore
+echo *.user >> .gitignore
+echo *.exe >> .gitignore
+echo *.obj >> .gitignore
+echo CMakeCache.txt >> .gitignore
+echo CMakeFiles/ >> .gitignore

@@ -1,0 +1,178 @@
+{
+	"abstract" : true,
+	"artifacts" : 
+	[
+		{
+			"path" : "C:/Qt/6.10.2/msvc2022_64/bin/syncqt.exe"
+		}
+	],
+	"backtrace" : 23,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_executable",
+			"include",
+			"find_package",
+			"_qt_internal_find_tool_dependencies"
+		],
+		"files" : 
+		[
+			"C:/Qt/6.10.2/msvc2022_64/lib/cmake/Qt6CoreTools/Qt6CoreToolsVersionlessTargets.cmake",
+			"C:/Qt/6.10.2/msvc2022_64/lib/cmake/Qt6CoreTools/Qt6CoreToolsConfig.cmake",
+			"build/Desktop_Qt_6_10_2_MSVC2022_64bit/.qtc/package-manager/maintenance_tool_provider.cmake",
+			"C:/Qt/6.10.2/msvc2022_64/lib/cmake/Qt6/QtPublicDependencyHelpers.cmake",
+			"C:/Qt/6.10.2/msvc2022_64/lib/cmake/Qt6WidgetsTools/Qt6WidgetsToolsDependencies.cmake",
+			"C:/Qt/6.10.2/msvc2022_64/lib/cmake/Qt6WidgetsTools/Qt6WidgetsToolsConfig.cmake",
+			"C:/Qt/6.10.2/msvc2022_64/lib/cmake/Qt6Widgets/Qt6WidgetsDependencies.cmake",
+			"C:/Qt/6.10.2/msvc2022_64/lib/cmake/Qt6Widgets/Qt6WidgetsConfig.cmake",
+			"C:/Program Files (x86)/VTK/lib/cmake/vtk-9.6/VTK-vtk-module-find-packages.cmake",
+			"C:/Program Files (x86)/VTK/lib/cmake/vtk-9.6/vtk-config.cmake",
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 10
+			},
+			{
+				"command" : 2,
+				"file" : 10,
+				"line" : 6,
+				"parent" : 0
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 340,
+				"parent" : 1
+			},
+			{
+				"file" : 9,
+				"parent" : 2
+			},
+			{
+				"command" : 1,
+				"file" : 9,
+				"line" : 171,
+				"parent" : 3
+			},
+			{
+				"file" : 8,
+				"parent" : 4
+			},
+			{
+				"command" : 2,
+				"file" : 8,
+				"line" : 168,
+				"parent" : 5
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 315,
+				"parent" : 6
+			},
+			{
+				"file" : 7,
+				"parent" : 7
+			},
+			{
+				"command" : 1,
+				"file" : 7,
+				"line" : 40,
+				"parent" : 8
+			},
+			{
+				"file" : 6,
+				"parent" : 9
+			},
+			{
+				"command" : 3,
+				"file" : 6,
+				"line" : 42,
+				"parent" : 10
+			},
+			{
+				"command" : 2,
+				"file" : 3,
+				"line" : 100,
+				"parent" : 11
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 333,
+				"parent" : 12
+			},
+			{
+				"file" : 5,
+				"parent" : 13
+			},
+			{
+				"command" : 1,
+				"file" : 5,
+				"line" : 36,
+				"parent" : 14
+			},
+			{
+				"file" : 4,
+				"parent" : 15
+			},
+			{
+				"command" : 3,
+				"file" : 4,
+				"line" : 14,
+				"parent" : 16
+			},
+			{
+				"command" : 2,
+				"file" : 3,
+				"line" : 100,
+				"parent" : 17
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 333,
+				"parent" : 18
+			},
+			{
+				"file" : 1,
+				"parent" : 19
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 49,
+				"parent" : 20
+			},
+			{
+				"file" : 0,
+				"parent" : 21
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 6,
+				"parent" : 22
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	},
+	"id" : "Qt::syncqt::@6890427a1f51a3e7e1df",
+	"imported" : true,
+	"name" : "Qt::syncqt",
+	"nameOnDisk" : "syncqt.exe",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sources" : [],
+	"type" : "EXECUTABLE"
+}

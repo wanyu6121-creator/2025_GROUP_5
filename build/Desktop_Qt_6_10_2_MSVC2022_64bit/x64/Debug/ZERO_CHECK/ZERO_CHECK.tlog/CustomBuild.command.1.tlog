@@ -1,0 +1,10 @@
+^C:\USERS\LLR USER\DESKTOP\2025_GROUP_5\BUILD\DESKTOP_QT_6_10_2_MSVC2022_64BIT\CMAKEFILES\7BDB898DAB0AE598B88A35C09304981C\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/LLR User/Desktop/2025_GROUP_5" "-BC:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit" --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file "C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6.slnx"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

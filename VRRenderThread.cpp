@@ -2,27 +2,23 @@
  *
  *   EEEE2076 - Software Engineering & VR Project
  *
- *   VR渲染线程类实现
+ *   VR渲染线程实现
  */
 
 #include "VRRenderThread.h"
 
-#include <vtkSmartPointer.h>
 #include <vtkNew.h>
 #include <vtkProperty.h>
 #include <vtkCamera.h>
-#include <vtkActorCollection.h>
 
 VRRenderThread::VRRenderThread(QObject* parent)
     : QThread(parent)
     , isRotating(false)
-    , rotationAngle(0.0)
 {
 }
 
 VRRenderThread::~VRRenderThread()
 {
-    /* 确保线程已完全退出再销毁对象，防止崩溃 */
     if (isRunning()) {
         requestInterruption();
         wait();
@@ -31,7 +27,7 @@ VRRenderThread::~VRRenderThread()
 
 void VRRenderThread::addActorOffline(vtkActor* actor)
 {
-    /* 此函数只应在 start() 之前调用，无需加锁 */
+    /* 仅在 start() 之前调用，无需加锁 */
     if (actor != nullptr) {
         actorList.append(actor);
     }
@@ -39,7 +35,7 @@ void VRRenderThread::addActorOffline(vtkActor* actor)
 
 void VRRenderThread::issueCommand(int cmd, double value)
 {
-    /* 加锁保证线程安全：GUI线程和VR线程都可能访问 commandQueue */
+    /* GUI线程调用此函数，必须加锁保护队列 */
     QMutexLocker locker(&mutex);
     commandQueue.enqueue(qMakePair(cmd, value));
 }
@@ -47,35 +43,34 @@ void VRRenderThread::issueCommand(int cmd, double value)
 void VRRenderThread::run()
 {
     /* ================================================================
-     * 步骤1：初始化 OpenVR 渲染器、渲染窗口和交互器
+     * 初始化 OpenVR 渲染环境
      * ================================================================ */
-    vtkNew<vtkOpenVRRenderer>              renderer;
-    vtkNew<vtkOpenVRRenderWindow>          renderWindow;
+    vtkNew<vtkOpenVRRenderer>               renderer;
+    vtkNew<vtkOpenVRRenderWindow>           renderWindow;
     vtkNew<vtkOpenVRRenderWindowInteractor> interactor;
-    vtkNew<vtkOpenVRCamera>                camera;
+    vtkNew<vtkOpenVRCamera>                 camera;
 
     renderWindow->AddRenderer(renderer);
-    renderWindow->SetSize(2160, 1200);  /* HTC Vive Pro 2 分辨率 */
+    renderWindow->SetSize(2160, 1200);
     interactor->SetRenderWindow(renderWindow);
-    interactor->SetInteractorStyle(nullptr); /* 使用默认VR交互风格 */
 
     renderer->SetActiveCamera(camera);
-    renderer->SetBackground(0.1, 0.1, 0.2); /* 深蓝色背景，比纯黑更有层次感 */
+    renderer->SetBackground(0.1, 0.1, 0.2);
 
     /* ================================================================
-     * 步骤2：将所有离线添加的Actor加入VR渲染器
+     * 将所有离线添加的Actor加入VR渲染器
      * ================================================================ */
     for (vtkActor* actor : actorList) {
         renderer->AddActor(actor);
     }
 
     /* ================================================================
-     * 步骤3：添加场景光照
+     * 添加场景光照
      * ================================================================ */
     setupLighting(renderer.Get());
 
     /* ================================================================
-     * 步骤4：初始化渲染并重置相机
+     * 初始化并重置相机
      * ================================================================ */
     renderWindow->Initialize();
     renderer->ResetCamera();
@@ -84,45 +79,59 @@ void VRRenderThread::run()
     renderer->ResetCameraClippingRange();
 
     /* ================================================================
-     * 步骤5：主渲染循环
-     * 每帧先消费命令队列，再渲染，直到被 requestInterruption() 中断
+     * 主渲染循环
      * ================================================================ */
     while (!isInterruptionRequested()) {
 
-        /* -- 消费命令队列（加锁，快进快出）-- */
+        /* -- 消费命令队列 -- */
         mutex.lock();
         while (!commandQueue.isEmpty()) {
             auto pair = commandQueue.dequeue();
             mutex.unlock();
-            processCommand(pair.first, pair.second); /* 在锁外处理命令，减少锁持有时间 */
+            /* 在锁外处理命令，减少锁持有时间 */
+            processCommand(pair.first, pair.second, renderer.Get());
             mutex.lock();
         }
         mutex.unlock();
 
         /* -- 旋转动画 -- */
         if (isRotating) {
-            rotationAngle += 0.5; /* 每帧旋转0.5度 */
             renderer->GetActiveCamera()->Azimuth(0.5);
+            renderer->ResetCameraClippingRange();
         }
 
         /* -- 渲染一帧 -- */
         renderWindow->Render();
 
-        /* -- 处理VR事件（手柄输入等），非阻塞 -- */
+        /* -- 处理VR手柄事件（非阻塞）-- */
         interactor->DoOneEvent(renderWindow.Get(), renderer.Get());
     }
 
     /* ================================================================
-     * 步骤6：清理资源，确保干净退出
-     * 必须在VR线程内部完成，不能在主线程中清理VTK VR对象
+     * 清理资源（必须在VR线程内完成）
      * ================================================================ */
     renderWindow->Finalize();
 }
 
-void VRRenderThread::processCommand(int cmd, double value)
+void VRRenderThread::processCommand(int cmd, double value, vtkOpenVRRenderer* renderer)
 {
-    /* 此函数在VR线程内部调用，可以安全地修改VTK对象 */
+    /* 此函数在VR线程内调用，可安全修改VTK对象 */
     switch (cmd) {
+
+    case CMD_SET_VISIBLE:
+        /* ----------------------------------------------------------------
+         * 可见性同步：遍历所有VR Actor，逐个设置可见性
+         *
+         * 为什么需要这个？
+         * 颜色通过 SetProperty 共享自动同步，但 SetVisibility 是
+         * Actor级别的属性，不在 vtkProperty 中，必须手动设置每个Actor。
+         * ---------------------------------------------------------------- */
+        for (vtkActor* actor : actorList) {
+            if (actor != nullptr) {
+                actor->SetVisibility(value > 0.5 ? 1 : 0);
+            }
+        }
+        break;
 
     case CMD_START_ROTATE:
         isRotating = true;
@@ -133,21 +142,21 @@ void VRRenderThread::processCommand(int cmd, double value)
         break;
 
     case CMD_RESET_VIEW:
-        /* 注意：此处需要访问renderer，但renderer是局部变量。
-         * 实际项目中可将renderer设为成员变量，此处作为示例展示命令框架 */
-        rotationAngle = 0.0;
+        /* 重置相机到初始视角 */
         isRotating = false;
+        if (renderer != nullptr) {
+            renderer->ResetCamera();
+            renderer->GetActiveCamera()->Azimuth(30);
+            renderer->GetActiveCamera()->Elevation(30);
+            renderer->ResetCameraClippingRange();
+        }
         break;
 
-    /* 颜色和可见性命令：
-     * 由于我们用 newActor->SetProperty(actor->GetProperty()) 共享了属性，
-     * GUI那边修改actor属性会自动反映到VR的actor上，
-     * 这些命令作为显式同步的备用方案保留 */
+    /* 颜色命令：由于共享Property已自动同步，此处无需额外操作
+     * 保留这些case是为了将来可以扩展精准控制单个零件 */
     case CMD_SET_COLOUR_R:
     case CMD_SET_COLOUR_G:
     case CMD_SET_COLOUR_B:
-    case CMD_SET_VISIBLE:
-        /* 共享属性机制已经自动同步，此处无需额外操作 */
         break;
 
     default:
@@ -157,13 +166,11 @@ void VRRenderThread::processCommand(int cmd, double value)
 
 void VRRenderThread::setupLighting(vtkOpenVRRenderer* renderer)
 {
-    /* ----------------------------------------------------------------
-     * 主光源：模拟头顶自然光
-     * ---------------------------------------------------------------- */
+    /* 主光源：模拟头顶自然光 */
     vtkSmartPointer<vtkLight> mainLight = vtkSmartPointer<vtkLight>::New();
     mainLight->SetLightTypeToSceneLight();
     mainLight->SetPosition(5.0, 10.0, 15.0);
-    mainLight->SetPositional(false);           /* false = 方向光，不随距离衰减 */
+    mainLight->SetPositional(false);
     mainLight->SetFocalPoint(0.0, 0.0, 0.0);
     mainLight->SetDiffuseColor(1.0, 1.0, 1.0);
     mainLight->SetAmbientColor(0.3, 0.3, 0.3);
@@ -171,15 +178,13 @@ void VRRenderThread::setupLighting(vtkOpenVRRenderer* renderer)
     mainLight->SetIntensity(0.8);
     renderer->AddLight(mainLight);
 
-    /* ----------------------------------------------------------------
-     * 补光：从另一侧补充阴影面，避免完全黑暗
-     * ---------------------------------------------------------------- */
+    /* 补光：消除纯黑阴影面 */
     vtkSmartPointer<vtkLight> fillLight = vtkSmartPointer<vtkLight>::New();
     fillLight->SetLightTypeToSceneLight();
     fillLight->SetPosition(-8.0, 5.0, -5.0);
     fillLight->SetPositional(false);
     fillLight->SetFocalPoint(0.0, 0.0, 0.0);
-    fillLight->SetDiffuseColor(0.8, 0.9, 1.0); /* 略带蓝色的补光，模拟天空漫反射 */
+    fillLight->SetDiffuseColor(0.8, 0.9, 1.0);
     fillLight->SetAmbientColor(0.0, 0.0, 0.0);
     fillLight->SetSpecularColor(0.0, 0.0, 0.0);
     fillLight->SetIntensity(0.4);

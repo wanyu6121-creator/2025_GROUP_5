@@ -1,0 +1,10 @@
+^C:\USERS\LLR USER\DESKTOP\2025_GROUP_5\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" "-SC:/Users/LLR User/Desktop/2025_GROUP_5" "-BC:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit" --check-stamp-file "C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/generate.stamp"
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

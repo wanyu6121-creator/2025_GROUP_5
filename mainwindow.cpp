@@ -16,26 +16,23 @@
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
-    , vrThread(nullptr)           /* 【新增】初始化VR线程指针为nullptr */
+    , vrThread(nullptr)
 {
     ui->setupUi(this);
 
-    /* ---- 原有信号槽连接，保持不变 ---- */
-    connect(ui->pushButton,  &QPushButton::released, this, &MainWindow::handleButton);
+    /* ---- 原有信号槽 ---- */
+    connect(ui->pushButton,   &QPushButton::released, this, &MainWindow::handleButton);
     connect(ui->pushButton_2, &QPushButton::released, this, &MainWindow::handleOptionsButton);
     ui->treeView->addAction(ui->actionItem_Options);
     connect(this, &MainWindow::statusUpdateMessage,
             ui->statusbar, &QStatusBar::showMessage);
     connect(ui->treeView, &QTreeView::clicked, this, &MainWindow::handleTreeClicked);
 
-    /* ---- 【新增】连接VR按钮信号槽 ---- */
-    /* 注意：需要在 mainwindow.ui 中添加两个按钮，objectName分别为
-     *       pushButtonStartVR 和 pushButtonStopVR
-     * 如果还没改UI，可以先用下面注释的方式通过菜单Action触发 */
-    //connect(ui->pushButtonStartVR, &QPushButton::released, this, &MainWindow::handleStartVR);
-    //connect(ui->pushButtonStopVR,  &QPushButton::released, this, &MainWindow::handleStopVR);
+    /* ---- 【阶段二】VR按钮信号槽（UI文件已添加按钮，此处恢复连接）---- */
+    connect(ui->pushButtonStartVR, &QPushButton::released, this, &MainWindow::handleStartVR);
+    connect(ui->pushButtonStopVR,  &QPushButton::released, this, &MainWindow::handleStopVR);
 
-    /* ---- 初始化TreeView和ModelPartList（保持不变）---- */
+    /* ---- 初始化TreeView ---- */
     this->partList = new ModelPartList("PartsList");
     ui->treeView->setModel(this->partList);
 
@@ -52,7 +49,7 @@ MainWindow::MainWindow(QWidget* parent)
         }
     }
 
-    /* ---- 初始化VTK渲染器（保持不变）---- */
+    /* ---- 初始化VTK渲染器 ---- */
     renderWindow = vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
     ui->widget->setRenderWindow(renderWindow);
     renderer = vtkSmartPointer<vtkRenderer>::New();
@@ -65,17 +62,17 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow()
 {
-    /* 【新增】确保VR线程在窗口销毁前安全退出 */
+    /* 确保VR线程在窗口销毁前安全退出 */
     if (vrThread != nullptr && vrThread->isRunning()) {
         vrThread->requestInterruption();
-        vrThread->wait(3000); /* 最多等待3秒 */
+        vrThread->wait(3000);
     }
     delete vrThread;
     delete ui;
 }
 
 /* ================================================================
- * 【新增】VR启动函数
+ * VR 启动
  * ================================================================ */
 void MainWindow::handleStartVR()
 {
@@ -85,26 +82,23 @@ void MainWindow::handleStartVR()
         return;
     }
 
-    /* 清理上一次的线程对象（如果有）*/
+    /* 清理上一次的线程对象 */
     if (vrThread != nullptr) {
         delete vrThread;
         vrThread = nullptr;
     }
 
-    /* 创建新的VR线程实例 */
+    /* 创建新线程并填充Actor */
     vrThread = new VRRenderThread(this);
-
-    /* 遍历树，收集所有已加载STL的零件，为每个创建独立VR Actor */
     populateVRActors();
 
-    /* 启动VR线程 */
+    /* 启动线程 */
     vrThread->start();
-
-    emit statusUpdateMessage("VR started!", 3000);
+    emit statusUpdateMessage("VR started! Put on your headset.", 0);
 }
 
 /* ================================================================
- * 【新增】VR停止函数
+ * VR 停止
  * ================================================================ */
 void MainWindow::handleStopVR()
 {
@@ -113,12 +107,9 @@ void MainWindow::handleStopVR()
         return;
     }
 
-    /* 请求线程中断，run()中的 isInterruptionRequested() 会变为true */
     vrThread->requestInterruption();
 
-    /* 等待线程真正退出（最多5秒）*/
     if (!vrThread->wait(5000)) {
-        /* 超时强制终止（不推荐，但作为保险措施）*/
         vrThread->terminate();
         vrThread->wait();
     }
@@ -127,7 +118,7 @@ void MainWindow::handleStopVR()
 }
 
 /* ================================================================
- * 【新增】遍历整棵树，为每个有Actor的零件创建VR Actor
+ * 遍历整棵树，为每个已加载STL的零件创建独立VR Actor
  * ================================================================ */
 void MainWindow::populateVRActors()
 {
@@ -145,14 +136,11 @@ void MainWindow::populateVRActorsFromTree(const QModelIndex& index)
 
     ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
 
-    /* 尝试为此零件创建VR Actor（如果未加载STL则返回nullptr）*/
     vtkActor* vrActor = part->getNewActor();
     if (vrActor != nullptr) {
         vrThread->addActorOffline(vrActor);
-        /* addActorOffline 内部存储了裸指针，VRRenderThread负责其生命周期 */
     }
 
-    /* 递归处理子节点 */
     if (partList->hasChildren(index)) {
         int rows = partList->rowCount(index);
         for (int i = 0; i < rows; i++) {
@@ -162,7 +150,7 @@ void MainWindow::populateVRActorsFromTree(const QModelIndex& index)
 }
 
 /* ================================================================
- * 以下为原有函数，保持不变
+ * 原有函数
  * ================================================================ */
 
 void MainWindow::handleButton()
@@ -201,9 +189,9 @@ void MainWindow::on_actionOpen_File_triggered()
             updateRender();
             renderer->ResetCamera();
             renderWindow->Render();
-            emit statusUpdateMessage(QString("Loaded STL file: ") + onlyFileName, 0);
+            emit statusUpdateMessage(QString("Loaded: ") + onlyFileName, 0);
         } else {
-            emit statusUpdateMessage("File chosen, but no parent item selected in the tree!", 0);
+            emit statusUpdateMessage("Please select a parent item in the tree first!", 0);
         }
     }
 }
@@ -239,16 +227,25 @@ void MainWindow::handleOptionsButton()
         selectedPart->setVisible(newVisible);
         selectedPart->setColour(r, g, b);
 
-        /* 颜色通过共享Property自动同步到VR，无需额外操作 */
-        /* 可见性需要通知VR线程（阶段二实现，此处预留）*/
-        // if (vrThread && vrThread->isRunning()) {
-        //     vrThread->issueCommand(CMD_SET_VISIBLE, newVisible ? 1.0 : 0.0);
-        // }
+        /* ----------------------------------------------------------------
+         * 【阶段二核心】可见性同步到VR
+         *
+         * 颜色已通过 SetProperty 共享自动同步，无需额外操作。
+         * 但 SetVisibility 是 Actor 级别的属性，不在 Property 中，
+         * 因此需要通过命令队列显式通知VR线程。
+         *
+         * 注意：由于每个ModelPart对应一个VR Actor，而VRRenderThread
+         * 目前只持有一个统一的actorList，暂时对所有Actor广播可见性命令。
+         * 阶段三（滤镜联调）时可以优化为按索引精准控制。
+         * ---------------------------------------------------------------- */
+        if (vrThread != nullptr && vrThread->isRunning()) {
+            vrThread->issueCommand(CMD_SET_VISIBLE, newVisible ? 1.0 : 0.0);
+        }
 
         renderWindow->Render();
-        emit statusUpdateMessage("Dialog accepted: Item updated", 0);
+        emit statusUpdateMessage("Item updated. Changes reflected in VR.", 0);
     } else {
-        emit statusUpdateMessage("Dialog rejected", 0);
+        emit statusUpdateMessage("Dialog cancelled.", 0);
     }
 }
 
