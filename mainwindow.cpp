@@ -14,6 +14,81 @@
 #include <vtkProperty.h>
 #include <vtkCamera.h>
 #include <vtkLight.h>
+#include <vtkTexture.h>
+#include <vtkImageData.h>
+#include <cmath>
+#include <cstdlib>
+
+/* ================================================================
+ * 程序生成星空贴图（GUI renderer 背景）
+ * 与 VRRenderThread.cpp 中的同名函数逻辑相同，独立定义以免跨文件依赖。
+ * ================================================================ */
+static vtkSmartPointer<vtkTexture> generateStarfieldTexture()
+{
+    const int W = 1024, H = 512, NC = 3;
+    std::srand(20250428);
+
+    vtkSmartPointer<vtkImageData> img = vtkSmartPointer<vtkImageData>::New();
+    img->SetDimensions(W, H, 1);
+    img->AllocateScalars(VTK_UNSIGNED_CHAR, NC);
+    unsigned char* buf = static_cast<unsigned char*>(img->GetScalarPointer());
+
+    auto clamp = [](int v) -> unsigned char {
+        return (unsigned char)(v < 0 ? 0 : v > 255 ? 255 : v);
+    };
+    auto addPx = [&](int x, int y, int dr, int dg, int db) {
+        if (x < 0 || x >= W || y < 0 || y >= H) return;
+        unsigned char* p = buf + (y * W + x) * NC;
+        p[0] = clamp((int)p[0] + dr);
+        p[1] = clamp((int)p[1] + dg);
+        p[2] = clamp((int)p[2] + db);
+    };
+
+    /* 深空底色 */
+    for (int y = 0; y < H; ++y)
+    for (int x = 0; x < W; ++x) {
+        int n = std::rand() % 14;
+        unsigned char* p = buf + (y * W + x) * NC;
+        p[0] = clamp(3  + n / 3);
+        p[1] = clamp(4  + n / 4);
+        p[2] = clamp(16 + n);
+    }
+    /* 星云色块 */
+    for (int k = 0; k < 12; ++k) {
+        int cx = std::rand() % W, cy = std::rand() % H;
+        int r  = 35 + std::rand() % 75;
+        int nr = 8  + std::rand() % 22, ng = 8 + std::rand() % 28, nb = 30 + std::rand() % 60;
+        for (int dy = -r; dy <= r; ++dy)
+        for (int dx = -r; dx <= r; ++dx) {
+            float d = std::sqrt((float)(dx*dx+dy*dy));
+            if (d > r) continue;
+            float a = std::exp(-2.5f*(d/r)*(d/r));
+            addPx((cx+dx+W)%W,(cy+dy+H)%H,(int)(nr*a),(int)(ng*a),(int)(nb*a));
+        }
+    }
+    /* 点星 */
+    for (int s = 0; s < 700; ++s) {
+        int sx = std::rand()%W, sy = std::rand()%H, t = std::rand()%3;
+        int sr, sg, sb;
+        if      (t==0) { sr=sg=sb=215+std::rand()%40; }
+        else if (t==1) { sr=175+std::rand()%55; sg=185+std::rand()%55; sb=255; }
+        else           { sr=255; sg=230+std::rand()%25; sb=175+std::rand()%55; }
+        int hr = 1+std::rand()%3;
+        for (int dy=-hr; dy<=hr; ++dy)
+        for (int dx=-hr; dx<=hr; ++dx) {
+            float d=std::sqrt((float)(dx*dx+dy*dy));
+            if (d>hr) continue;
+            float a=(d<=0.5f)?1.0f:std::exp(-3.0f*(d/hr)*(d/hr));
+            addPx((sx+dx+W)%W,(sy+dy+H)%H,(int)(sr*a),(int)(sg*a),(int)(sb*a));
+        }
+    }
+
+    vtkSmartPointer<vtkTexture> tex = vtkSmartPointer<vtkTexture>::New();
+    tex->SetInputData(img);
+    tex->InterpolateOn();
+    tex->RepeatOff();
+    return tex;
+}
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -92,44 +167,40 @@ MainWindow::MainWindow(QWidget* parent)
     renderer = vtkSmartPointer<vtkRenderer>::New();
     renderWindow->AddRenderer(renderer);
 
-    /* 渐变背景：底部深蓝 → 顶部亮蓝，提供明显的太空感背景 */
-    renderer->SetBackground(0.10, 0.10, 0.30);   /* 底：深蓝 */
-    renderer->SetBackground2(0.30, 0.50, 0.80);  /* 顶：亮蓝 */
-    renderer->GradientBackgroundOn();
+    /* 星空背景贴图：程序生成，通过 VTK TexturedBackground 机制渲染，
+     * 不依赖 vtkSkybox / cubemap，与 VR 线程保持一致的实现方式 */
+    renderer->GradientBackgroundOff();
+    renderer->SetBackgroundTexture(generateStarfieldTexture());
+    renderer->TexturedBackgroundOn();
 
     renderer->ResetCamera();
     renderer->GetActiveCamera()->Azimuth(30);
     renderer->GetActiveCamera()->Elevation(30);
     renderer->ResetCameraClippingRange();
 
-    /* ---- GUI侧双光源初始化 ----
-     * 关闭VTK默认的headlight，改用手动定位的主光+补光，
-     * 这样滑块才能真正影响桌面窗口里的光照效果。 */
-    renderer->AutomaticLightCreationOff();   /* 禁用VTK自动headlight */
+    /* ---- GUI侧双光源初始化 ---- */
+    renderer->AutomaticLightCreationOff();
 
-    /* 主光（Key Light）：右上前方，暖白色，初始强度0.8 */
     guiKeyLight = vtkSmartPointer<vtkLight>::New();
     guiKeyLight->SetLightTypeToSceneLight();
     guiKeyLight->SetPosition(1.0, 1.0, 1.0);
     guiKeyLight->SetFocalPoint(0.0, 0.0, 0.0);
-    guiKeyLight->SetDiffuseColor(1.0, 0.98, 0.95);   /* 略带暖色 */
+    guiKeyLight->SetDiffuseColor(1.0, 0.98, 0.95);
     guiKeyLight->SetAmbientColor(0.1, 0.1, 0.1);
     guiKeyLight->SetSpecularColor(1.0, 1.0, 1.0);
     guiKeyLight->SetIntensity(0.8);
     renderer->AddLight(guiKeyLight);
 
-    /* 补光（Fill Light）：左下后方，冷蓝色，强度固定为主光40%，提供轮廓感 */
     guiFillLight = vtkSmartPointer<vtkLight>::New();
     guiFillLight->SetLightTypeToSceneLight();
     guiFillLight->SetPosition(-1.0, -0.5, -0.8);
     guiFillLight->SetFocalPoint(0.0, 0.0, 0.0);
-    guiFillLight->SetDiffuseColor(0.7, 0.85, 1.0);   /* 冷蓝补光 */
+    guiFillLight->SetDiffuseColor(0.7, 0.85, 1.0);
     guiFillLight->SetAmbientColor(0.0, 0.0, 0.0);
     guiFillLight->SetSpecularColor(0.5, 0.5, 0.5);
-    guiFillLight->SetIntensity(0.32);                 /* 主光的40% */
+    guiFillLight->SetIntensity(0.32);
     renderer->AddLight(guiFillLight);
 
-    /* 初始渲染，确保背景立即显示 */
     renderWindow->Render();
 }
 
@@ -703,3 +774,4 @@ void MainWindow::updateRenderFromTree(const QModelIndex& index)
         updateRenderFromTree(partList->index(i, 0, index));
     }
 }
+

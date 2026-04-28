@@ -27,6 +27,11 @@
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderWindowInteractor.h>
+#include <vtkImageData.h>
+#include <vtkTexture.h>
+#include <vtkSkybox.h>
+#include <cmath>
+#include <cstdlib>
 
 /* ================================================================
  * 构造 / 析构
@@ -584,24 +589,108 @@ void VRRenderThread::rebuildPipeline(int idx)
  * 背景渐变（渐变背景取代Skybox，兼容所有VTK版本）
  * ================================================================ */
 
-void VRRenderThread::setupSkybox(vtkOpenVRRenderer* renderer,
-                                  vtkOpenVRRenderWindow* renderWindow)
+/* ================================================================
+ * 程序生成星空 Cubemap（6面，每面 512×512）
+ *
+ * vtkTexture::CubeMapOn() 要求传入包含6个分量的 vtkImageData，
+ * 每个分量对应一个面（+X -X +Y -Y +Z -Z）。
+ * 用固定种子程序生成，不依赖外部文件。
+ * ================================================================ */
+static vtkSmartPointer<vtkTexture> generateCubemapTexture()
 {
-    /* vtkSkybox 需要 cubemap 格式贴图，程序化2D图像无法驱动它。
-     * 改用 VTK 原生渐变背景：底部深蓝 → 顶部接近黑色，
-     * 视觉效果类似太空背景，且在所有 VTK 版本下 100% 可用。 */
-    renderer->SetBackground(0.10, 0.10, 0.30);   /* 底：深蓝 */
-    renderer->SetBackground2(0.30, 0.50, 0.80);  /* 顶：亮蓝 */
-    renderer->GradientBackgroundOn();
+    const int S = 512, NC = 3;          /* 每面 512×512，RGB */
+
+    auto clamp = [](int v) -> unsigned char {
+        return (unsigned char)(v < 0 ? 0 : v > 255 ? 255 : v);
+    };
+
+    /* 生成单面星空图 */
+    auto makeFace = [&](unsigned int seed) -> vtkSmartPointer<vtkImageData> {
+        std::srand(seed);
+        vtkSmartPointer<vtkImageData> img = vtkSmartPointer<vtkImageData>::New();
+        img->SetDimensions(S, S, 1);
+        img->AllocateScalars(VTK_UNSIGNED_CHAR, NC);
+        unsigned char* buf = static_cast<unsigned char*>(img->GetScalarPointer());
+
+        auto addPx = [&](int x, int y, int dr, int dg, int db) {
+            if (x < 0 || x >= S || y < 0 || y >= S) return;
+            unsigned char* p = buf + (y * S + x) * NC;
+            p[0] = clamp((int)p[0] + dr);
+            p[1] = clamp((int)p[1] + dg);
+            p[2] = clamp((int)p[2] + db);
+        };
+
+        /* 深空底色 */
+        for (int i = 0; i < S * S; ++i) {
+            int n = std::rand() % 14;
+            buf[i*NC+0] = clamp(3  + n/3);
+            buf[i*NC+1] = clamp(4  + n/4);
+            buf[i*NC+2] = clamp(16 + n);
+        }
+        /* 星云（每面2个）*/
+        for (int k = 0; k < 2; ++k) {
+            int cx = std::rand()%S, cy = std::rand()%S;
+            int r  = 40 + std::rand()%70;
+            int nr = 8+std::rand()%22, ng = 8+std::rand()%28, nb = 30+std::rand()%60;
+            for (int dy=-r; dy<=r; ++dy)
+            for (int dx=-r; dx<=r; ++dx) {
+                float d = std::sqrt((float)(dx*dx+dy*dy));
+                if (d > r) continue;
+                float a = std::exp(-2.5f*(d/r)*(d/r));
+                addPx((cx+dx+S)%S,(cy+dy+S)%S,(int)(nr*a),(int)(ng*a),(int)(nb*a));
+            }
+        }
+        /* 点星（每面120颗）*/
+        for (int s = 0; s < 120; ++s) {
+            int sx=std::rand()%S, sy=std::rand()%S, t=std::rand()%3;
+            int sr, sg, sb;
+            if      (t==0){sr=sg=sb=215+std::rand()%40;}
+            else if (t==1){sr=175+std::rand()%55;sg=185+std::rand()%55;sb=255;}
+            else          {sr=255;sg=230+std::rand()%25;sb=175+std::rand()%55;}
+            int hr=1+std::rand()%3;
+            for (int dy=-hr; dy<=hr; ++dy)
+            for (int dx=-hr; dx<=hr; ++dx) {
+                float d=std::sqrt((float)(dx*dx+dy*dy));
+                if (d>hr) continue;
+                float a=(d<=0.5f)?1.0f:std::exp(-3.0f*(d/hr)*(d/hr));
+                addPx((sx+dx+S)%S,(sy+dy+S)%S,(int)(sr*a),(int)(sg*a),(int)(sb*a));
+            }
+        }
+        return img;
+    };
+
+    /* 创建 cubemap texture：6 个面使用不同种子，内容略有差异 */
+    vtkSmartPointer<vtkTexture> tex = vtkSmartPointer<vtkTexture>::New();
+    tex->CubeMapOn();
+    tex->InterpolateOn();
+    tex->MipmapOn();
+    tex->RepeatOff();
+    /* VTK cubemap：每个面用 SetInputDataObject(index, imageData) 传入 */
+    for (int face = 0; face < 6; ++face) {
+        tex->SetInputDataObject(face, makeFace(20250428u + (unsigned int)face * 137u));
+    }
+    return tex;
+}
+
+/* 辅助：把 vtkSkybox 加入渲染器 */
+static void attachSkybox(vtkRenderer* renderer, vtkSmartPointer<vtkTexture> cubemap)
+{
+    vtkSmartPointer<vtkSkybox> skybox = vtkSmartPointer<vtkSkybox>::New();
+    skybox->SetTexture(cubemap);
+    renderer->AddActor(skybox);
+    renderer->GradientBackgroundOff();
+}
+
+void VRRenderThread::setupSkybox(vtkOpenVRRenderer* renderer,
+                                  vtkOpenVRRenderWindow* /*renderWindow*/)
+{
+    attachSkybox(renderer, generateCubemapTexture());
 }
 
 void VRRenderThread::setupSkyboxDesktop(vtkRenderer* renderer,
-                                         vtkRenderWindow* renderWindow)
+                                         vtkRenderWindow* /*renderWindow*/)
 {
-    /* 与VR模式相同的渐变背景 */
-    renderer->SetBackground(0.10, 0.10, 0.30);
-    renderer->SetBackground2(0.30, 0.50, 0.80);
-    renderer->GradientBackgroundOn();
+    attachSkybox(renderer, generateCubemapTexture());
 }
 
 /* ================================================================

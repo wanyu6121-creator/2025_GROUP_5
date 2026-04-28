@@ -1,9 +1,10 @@
 {
+	"backtrace" : 1,
 	"backtraceGraph" : 
 	{
 		"commands" : 
 		[
-			"install"
+			"add_custom_target"
 		],
 		"files" : 
 		[
@@ -17,7 +18,7 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 74,
+				"line" : 86,
 				"parent" : 0
 			}
 		]
@@ -27,24 +28,19 @@
 		"major" : 2,
 		"minor" : 9
 	},
-	"installers" : 
+	"dependencies" : 
 	[
 		{
-			"backtrace" : 1,
-			"component" : "Unspecified",
-			"destination" : "bin",
-			"paths" : 
-			[
-				"MinSizeRel/worksheet6.exe"
-			],
-			"targetId" : "worksheet6::@6890427a1f51a3e7e1df",
-			"targetIndex" : 3,
-			"type" : "target"
+			"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df"
 		}
 	],
+	"id" : "VRBindings::@6890427a1f51a3e7e1df",
+	"name" : "VRBindings",
 	"paths" : 
 	{
 		"build" : ".",
 		"source" : "."
-	}
+	},
+	"sources" : [],
+	"type" : "UTILITY"
 }

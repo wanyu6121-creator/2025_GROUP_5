@@ -17,7 +17,7 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 74,
+				"line" : 75,
 				"parent" : 0
 			}
 		]
@@ -35,7 +35,7 @@
 			"destination" : "bin",
 			"paths" : 
 			[
-				"Debug/worksheet6.exe"
+				"MinSizeRel/worksheet6.exe"
 			],
 			"targetId" : "worksheet6::@6890427a1f51a3e7e1df",
 			"targetIndex" : 3,

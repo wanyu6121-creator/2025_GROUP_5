@@ -2,10 +2,10 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "Release/worksheet6.exe"
+			"path" : "RelWithDebInfo/worksheet6.exe"
 		},
 		{
-			"path" : "Release/worksheet6.pdb"
+			"path" : "RelWithDebInfo/worksheet6.pdb"
 		}
 	],
 	"backtrace" : 4,
@@ -60,7 +60,7 @@
 			{
 				"command" : 3,
 				"file" : 1,
-				"line" : 43,
+				"line" : 44,
 				"parent" : 0
 			},
 			{
@@ -84,13 +84,13 @@
 			{
 				"command" : 4,
 				"file" : 1,
-				"line" : 74,
+				"line" : 75,
 				"parent" : 0
 			},
 			{
 				"command" : 5,
 				"file" : 1,
-				"line" : 56,
+				"line" : 57,
 				"parent" : 0
 			},
 			{
@@ -408,12 +408,6 @@
 			{
 				"command" : 6,
 				"file" : 2,
-				"line" : 1376,
-				"parent" : 11
-			},
-			{
-				"command" : 6,
-				"file" : 2,
 				"line" : 3500,
 				"parent" : 11
 			},
@@ -498,14 +492,14 @@
 			{
 				"command" : 13,
 				"file" : 1,
-				"line" : 91,
+				"line" : 92,
 				"parent" : 0
 			},
 			{
 				"command" : 12,
 				"file" : 20,
 				"line" : 3527,
-				"parent" : 79
+				"parent" : 78
 			}
 		]
 	},
@@ -546,6 +540,10 @@
 		},
 		{
 			"backtrace" : 6,
+			"id" : "VTK::ImagingCore::@6890427a1f51a3e7e1df"
+		},
+		{
+			"backtrace" : 6,
 			"id" : "VTK::RenderingCore::@6890427a1f51a3e7e1df"
 		},
 		{
@@ -571,7 +569,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-DQT_QML_DEBUG /DWIN32 /D_WINDOWS /GR /EHsc /O2 /Ob2 /DNDEBUG -std:c++17 -MD"
+					"fragment" : "-DQT_QML_DEBUG /DWIN32 /D_WINDOWS /GR /EHsc /Zi /O2 /Ob1 /DNDEBUG -std:c++17 -MD"
 				},
 				{
 					"backtrace" : 31,
@@ -665,7 +663,7 @@
 					"define" : "kiss_fft_scalar=double"
 				},
 				{
-					"backtrace" : 80,
+					"backtrace" : 79,
 					"define" : "vtkRenderingCore_AUTOINIT_INCLUDE=\"C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/CMakeFiles/vtkModuleAutoInit_5e984c86b020da752eb6357425f4f168.h\""
 				}
 			],
@@ -673,7 +671,7 @@
 			[
 				{
 					"backtrace" : 0,
-					"path" : "C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/include_Release"
+					"path" : "C:/Users/LLR User/Desktop/2025_GROUP_5/build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/include_RelWithDebInfo"
 				},
 				{
 					"backtrace" : 31,
@@ -821,11 +819,11 @@
 		"commandFragments" : 
 		[
 			{
-				"fragment" : "-DQT_QML_DEBUG /DWIN32 /D_WINDOWS /GR /EHsc /O2 /Ob2 /DNDEBUG -MD",
+				"fragment" : "-DQT_QML_DEBUG /DWIN32 /D_WINDOWS /GR /EHsc /Zi /O2 /Ob1 /DNDEBUG -MD",
 				"role" : "flags"
 			},
 			{
-				"fragment" : "/machine:x64 /INCREMENTAL:NO",
+				"fragment" : "/machine:x64 /debug /INCREMENTAL",
 				"role" : "flags"
 			},
 			{
@@ -998,7 +996,7 @@
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 64,
+				"backtrace" : 6,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkImagingCore-9.6d.lib\"",
 				"role" : "libraries"
 			},
@@ -1008,32 +1006,32 @@
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 65,
+				"backtrace" : 64,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkIOLegacy-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 66,
+				"backtrace" : 65,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkIOCellGrid-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 65,
+				"backtrace" : 64,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkIOCore-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 67,
+				"backtrace" : 66,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkFiltersCellGrid-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 68,
+				"backtrace" : 67,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkRenderingLabel-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 69,
+				"backtrace" : 68,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkRenderingFreeType-9.6d.lib\"",
 				"role" : "libraries"
 			},
@@ -1048,12 +1046,12 @@
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 70,
+				"backtrace" : 69,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkfreetype-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 71,
+				"backtrace" : 70,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkzlib-9.6d.lib\"",
 				"role" : "libraries"
 			},
@@ -1063,12 +1061,12 @@
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 72,
+				"backtrace" : 71,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkFiltersCore-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 73,
+				"backtrace" : 72,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkCommonExecutionModel-9.6d.lib\"",
 				"role" : "libraries"
 			},
@@ -1078,22 +1076,22 @@
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 74,
+				"backtrace" : 73,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkCommonTransforms-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 75,
+				"backtrace" : 74,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkCommonMisc-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 74,
+				"backtrace" : 73,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkCommonMath-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 76,
+				"backtrace" : 75,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkkissfft-9.6d.lib\"",
 				"role" : "libraries"
 			},
@@ -1103,37 +1101,37 @@
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 77,
+				"backtrace" : 76,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkfmt-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 77,
+				"backtrace" : 76,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtkscn-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 77,
+				"backtrace" : 76,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtktoken-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 77,
+				"backtrace" : 76,
 				"fragment" : "\"C:\\Program Files (x86)\\VTK\\lib\\vtksys-9.6d.lib\"",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 78,
+				"backtrace" : 77,
 				"fragment" : "ws2_32.lib",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 78,
+				"backtrace" : 77,
 				"fragment" : "dbghelp.lib",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 78,
+				"backtrace" : 77,
 				"fragment" : "psapi.lib",
 				"role" : "libraries"
 			},
@@ -1176,6 +1174,10 @@
 		},
 		{
 			"backtrace" : 6,
+			"id" : "VTK::ImagingCore::@6890427a1f51a3e7e1df"
+		},
+		{
+			"backtrace" : 6,
 			"id" : "VTK::RenderingCore::@6890427a1f51a3e7e1df"
 		},
 		{
@@ -1200,11 +1202,11 @@
 	"orderDependencies" : 
 	[
 		{
-			"id" : "Qt6::rcc::@6890427a1f51a3e7e1df"
-		},
-		{
 			"backtrace" : 0,
 			"id" : "Qt6::moc::@6890427a1f51a3e7e1df"
+		},
+		{
+			"id" : "Qt6::rcc::@6890427a1f51a3e7e1df"
 		},
 		{
 			"backtrace" : 0,
@@ -1285,7 +1287,7 @@
 			"backtrace" : 0,
 			"compileGroupIndex" : 0,
 			"isGenerated" : true,
-			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/mocs_compilation_Release.cpp",
+			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/mocs_compilation_RelWithDebInfo.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{
@@ -1367,26 +1369,26 @@
 		{
 			"backtrace" : 0,
 			"isGenerated" : true,
-			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/include_Release/ui_mainwindow.h",
+			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/include_RelWithDebInfo/ui_mainwindow.h",
 			"sourceGroupIndex" : 1
 		},
 		{
 			"backtrace" : 0,
 			"isGenerated" : true,
-			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/include_Release/ui_optiondialog.h",
+			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/include_RelWithDebInfo/ui_optiondialog.h",
 			"sourceGroupIndex" : 1
 		},
 		{
 			"backtrace" : 0,
 			"isGenerated" : true,
-			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/autouic_Release.stamp",
+			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/autouic_RelWithDebInfo.stamp",
 			"sourceGroupIndex" : 4
 		},
 		{
 			"backtrace" : 0,
 			"compileGroupIndex" : 0,
 			"isGenerated" : true,
-			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/EWIEGA46WW_Release/qrc_icons.cpp",
+			"path" : "build/Desktop_Qt_6_10_2_MSVC2022_64bit/worksheet6_autogen/EWIEGA46WW_RelWithDebInfo/qrc_icons.cpp",
 			"sourceGroupIndex" : 0
 		},
 		{

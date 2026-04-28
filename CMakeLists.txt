@@ -8,9 +8,10 @@ find_package(VTK REQUIRED COMPONENTS
     CommonDataModel
     FiltersSources
     IOGeometry
+    ImagingCore
     RenderingCore
     RenderingOpenGL2
-    RenderingOpenVR          # 【新增】OpenVR渲染支持
+    RenderingOpenVR
     GUISupportQt
     RenderingQt
 )

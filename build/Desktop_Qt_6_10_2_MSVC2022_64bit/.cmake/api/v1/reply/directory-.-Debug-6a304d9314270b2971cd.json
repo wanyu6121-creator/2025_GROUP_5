@@ -1,10 +1,9 @@
 {
-	"backtrace" : 1,
 	"backtraceGraph" : 
 	{
 		"commands" : 
 		[
-			"add_custom_target"
+			"install"
 		],
 		"files" : 
 		[
@@ -18,7 +17,7 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 85,
+				"line" : 75,
 				"parent" : 0
 			}
 		]
@@ -28,19 +27,24 @@
 		"major" : 2,
 		"minor" : 9
 	},
-	"dependencies" : 
+	"installers" : 
 	[
 		{
-			"id" : "ZERO_CHECK::@6890427a1f51a3e7e1df"
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "bin",
+			"paths" : 
+			[
+				"Debug/worksheet6.exe"
+			],
+			"targetId" : "worksheet6::@6890427a1f51a3e7e1df",
+			"targetIndex" : 3,
+			"type" : "target"
 		}
 	],
-	"id" : "VRBindings::@6890427a1f51a3e7e1df",
-	"name" : "VRBindings",
 	"paths" : 
 	{
 		"build" : ".",
 		"source" : "."
-	},
-	"sources" : [],
-	"type" : "UTILITY"
+	}
 }
