@@ -130,6 +130,14 @@
        </widget>
       </item>
 
+      <!-- 删除节点按钮（加分功能）-->
+      <item>
+       <widget class="QPushButton" name="pushButtonDelete">
+        <property name="text"><string>Delete Node</string></property>
+        <property name="toolTip"><string>Delete selected node and remove from VR scene</string></property>
+       </widget>
+      </item>
+
       <item>
        <spacer name="horizontalSpacer">
         <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
@@ -141,16 +149,52 @@
      </layout>
     </item>
 
+    <!-- 光照强度控制行（创意功能：VR运行时实时调节主光源亮度）-->
+    <item>
+     <layout class="QHBoxLayout" name="lightLayout">
+      <item>
+       <widget class="QLabel" name="labelLight">
+        <property name="text"><string>Light:</string></property>
+        <property name="toolTip"><string>Adjust main light intensity in VR scene</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSlider" name="sliderLightIntensity">
+        <property name="minimum"><number>0</number></property>
+        <property name="maximum"><number>100</number></property>
+        <property name="value"><number>40</number></property>
+        <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+        <property name="tickPosition"><enum>QSlider::TickPosition::TicksBelow</enum></property>
+        <property name="tickInterval"><number>10</number></property>
+        <property name="toolTip"><string>Drag to change VR light intensity in real time</string></property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch><verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="labelLightValue">
+        <property name="text"><string>80%</string></property>
+        <property name="minimumSize"><size><width>35</width><height>0</height></size></property>
+        <property name="alignment"><set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set></property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+
    </layout>
   </widget>
 
-  <widget class="QMenuBar" name="menubar">
+   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect><x>0</x><y>0</y><width>960</width><height>22</height></rect>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title"><string>File</string></property>
     <addaction name="actionOpen_File"/>
+    <addaction name="actionOpen_Directory"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
@@ -177,6 +221,22 @@
   <action name="actionItem_Options">
    <property name="text"><string>Item Options</string></property>
    <property name="toolTip"><string>Item Options</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <!-- 【加分功能A-1】批量目录加载菜单项 -->
+  <action name="actionOpen_Directory">
+   <property name="text"><string>Open Directory...</string></property>
+   <property name="toolTip"><string>Load all STL files from a directory (recursive)</string></property>
+   <property name="shortcut"><string>Ctrl+Shift+O</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <!-- 【加分功能A-2】右键菜单 Delete 节点 -->
+  <action name="actionDelete_Node">
+   <property name="text"><string>Delete</string></property>
+   <property name="toolTip"><string>Delete selected node and remove from VR scene</string></property>
+   <property name="shortcut"><string>Del</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 

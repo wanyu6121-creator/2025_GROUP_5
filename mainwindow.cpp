@@ -2,6 +2,7 @@
 #include "./ui_mainwindow.h"
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QDirIterator>
 #include "optiondialog.h"
 
 #include <vtkSmartPointer.h>
@@ -32,6 +33,17 @@ MainWindow::MainWindow(QWidget* parent)
     connect(ui->treeView, &QTreeView::clicked,
             this, &MainWindow::handleTreeClicked);
 
+    /* ---- 【加分功能A-2】右键菜单：将 Delete 动作挂入 treeView ----
+     * treeView 的 contextMenuPolicy 已设为 ActionsContextMenu，
+     * 只需 addAction 即可出现在右键菜单中。 */
+    ui->treeView->addAction(ui->actionDelete_Node);
+    connect(ui->actionDelete_Node, &QAction::triggered,
+            this, &MainWindow::handleDeleteNode);
+
+    /* ---- 【加分功能A-3】Open Directory 菜单项 ---- */
+    connect(ui->actionOpen_Directory, &QAction::triggered,
+            this, &MainWindow::on_actionOpen_Directory_triggered);
+
     /* ---- 滤镜复选框 ---- */
     connect(ui->checkBoxClip,   &QCheckBox::toggled,
             this, &MainWindow::handleClipToggle);
@@ -47,6 +59,14 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::handleToggleRotate);
     connect(ui->pushButtonResetView, &QPushButton::released,
             this, &MainWindow::handleResetView);
+
+    /* ---- 【创意功能】光照强度滑块 ----
+     * sliderLightIntensity 范围 0~100，初始值40（对应强度0.8）*/
+    connect(ui->sliderLightIntensity, &QSlider::valueChanged,
+            this, &MainWindow::handleLightIntensityChanged);
+    ui->sliderLightIntensity->setValue(40);  /* 初始强度 0.8 = 40/100*2.0 */
+
+    /* ---- 【加分功能】删除节点：已通过右键菜单 actionDelete_Node 连接，见上方 ---- */
 
     /* ---- 初始化TreeView ---- */
     this->partList = new ModelPartList("PartsList");
@@ -70,10 +90,19 @@ MainWindow::MainWindow(QWidget* parent)
     ui->widget->setRenderWindow(renderWindow);
     renderer = vtkSmartPointer<vtkRenderer>::New();
     renderWindow->AddRenderer(renderer);
+
+    /* 渐变背景：底部深蓝 → 顶部亮蓝，提供明显的太空感背景 */
+    renderer->SetBackground(0.10, 0.10, 0.30);   /* 底：深蓝 */
+    renderer->SetBackground2(0.30, 0.50, 0.80);  /* 顶：亮蓝 */
+    renderer->GradientBackgroundOn();
+
     renderer->ResetCamera();
     renderer->GetActiveCamera()->Azimuth(30);
     renderer->GetActiveCamera()->Elevation(30);
     renderer->ResetCameraClippingRange();
+
+    /* 初始渲染，确保背景立即显示 */
+    renderWindow->Render();
 }
 
 MainWindow::~MainWindow()
@@ -96,15 +125,13 @@ void MainWindow::handleStartVR()
         return;
     }
 
-    /* 停止并清理上一次的线程实例（支持多次重启）*/
+    /* 清理上一次的线程实例（支持多次重启）*/
     if (vrThread != nullptr) {
         delete vrThread;
         vrThread = nullptr;
     }
 
-    /* 清空索引映射（每次启动重新建立）*/
     actorIndexMap.clear();
-
     isVRRotating = false;
     ui->pushButtonRotate->setText("Start Rotate");
 
@@ -112,6 +139,10 @@ void MainWindow::handleStartVR()
 
     /* 遍历树，为每个已加载STL的零件创建VR Actor并注册 */
     populateVRActors();
+
+    /* 将当前光照强度滑块值同步到线程初始状态 */
+    double initIntensity = ui->sliderLightIntensity->value() / 100.0 * 2.0;
+    vrThread->issueCommand(CMD_SET_LIGHT_INTENSITY, initIntensity);
 
     vrThread->start();
     emit statusUpdateMessage("VR started! Put on your headset.", 0);
@@ -178,7 +209,80 @@ void MainWindow::handleResetView()
 }
 
 /* ================================================================
- * 遍历树，为每个已加载STL的零件创建VR Actor并注册到vrThread
+ * 【创意功能】光照强度滑块
+ * 滑块值 0~100 → 光照强度 0.0~2.0
+ * ================================================================ */
+void MainWindow::handleLightIntensityChanged(int value)
+{
+    /* 将0~100的滑块值线性映射到0.0~2.0的光照强度 */
+    double intensity = value / 100.0 * 2.0;
+
+    if (vrThread != nullptr && vrThread->isRunning()) {
+        vrThread->issueCommand(CMD_SET_LIGHT_INTENSITY, intensity);
+    }
+
+    /* labelLightValue 实时显示百分比数字（滑块旁的数字标签）*/
+    ui->labelLightValue->setText(QString("%1%").arg(value * 2));
+
+    /* 状态栏显示当前百分比 */
+    emit statusUpdateMessage(
+        QString("Light intensity: %1%").arg(value * 2), 1500);
+}
+
+/* ================================================================
+ * 【加分功能】删除选中节点
+ * 同步从GUI渲染器和VR线程中移除对应Actor
+ * ================================================================ */
+void MainWindow::handleDeleteNode()
+{
+    QModelIndex index = ui->treeView->currentIndex();
+
+    if (!index.isValid()) {
+        emit statusUpdateMessage("Select a node to delete first!", 2000);
+        return;
+    }
+
+    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+
+    /* 不允许删除根节点 */
+    if (selectedPart->parentItem() == nullptr) {
+        emit statusUpdateMessage("Cannot delete root node.", 2000);
+        return;
+    }
+
+    QString partName = selectedPart->data(0).toString();
+
+    /* 1. 通知VR线程移除Actor（在GUI操作之前，索引尚有效）*/
+    if (vrThread != nullptr && vrThread->isRunning()) {
+        int idx = getActorIndex(selectedPart);
+        if (idx >= 0) {
+            vrThread->issueCommand(CMD_REMOVE_ACTOR, 0.0, idx);
+        }
+    }
+
+    /* 2. 从索引映射中移除 */
+    actorIndexMap.remove(selectedPart);
+
+    /* 3. 从GUI渲染器移除Actor */
+    vtkSmartPointer<vtkActor> guiActor = selectedPart->getActor();
+    if (guiActor) {
+        renderer->RemoveActor(guiActor);
+    }
+
+    /* 4. 从树模型中移除节点
+     * removeItem() 内部调用 beginRemoveRows/endRemoveRows（protected方法），
+     * 并通过 ModelPart::removeChild() 级联释放子节点内存 */
+    partList->removeItem(index);
+
+    /* 5. 刷新GUI渲染 */
+    updateRender();
+    renderWindow->Render();
+
+    emit statusUpdateMessage(QString("Deleted: ") + partName, 2000);
+}
+
+/* ================================================================
+ * 遍历树，注册VR Actor
  * ================================================================ */
 void MainWindow::populateVRActors()
 {
@@ -198,8 +302,6 @@ void MainWindow::populateVRActorsFromTree(const QModelIndex& index)
 
     vtkActor* vrActor = part->getNewActor();
     if (vrActor != nullptr) {
-        /* 注册Actor时同时传入reader和初始滤镜状态，
-         * 这样VR线程可以在收到CMD_APPLY_FILTER时正确重建pipeline */
         int idx = vrThread->addActorOffline(
             vrActor,
             part->getReader(),
@@ -238,7 +340,7 @@ void MainWindow::handleTreeClicked()
     QString text = selectedPart->data(0).toString();
     emit statusUpdateMessage(QString("The selected item is: ") + text, 0);
 
-    /* 更新复选框状态以反映当前选中零件的滤镜状态 */
+    /* 更新复选框以反映当前选中零件的滤镜状态 */
     ui->checkBoxClip->blockSignals(true);
     ui->checkBoxShrink->blockSignals(true);
     ui->checkBoxClip->setChecked(selectedPart->getClip());
@@ -265,6 +367,25 @@ void MainWindow::on_actionOpen_File_triggered()
             selectedPart->appendChild(newItem);
             ui->treeView->model()->layoutChanged();
             newItem->loadSTL(fileName);
+
+            /* 【加分功能】VR运行时动态推送新Actor */
+            if (vrThread != nullptr && vrThread->isRunning()) {
+                vtkActor* vrActor = newItem->getNewActor();
+                if (vrActor) {
+                    ActorPackage pkg;
+                    pkg.actor    = vrActor;
+                    pkg.reader   = vtkSmartPointer<vtkSTLReader>(newItem->getReader());
+                    pkg.clipOn   = newItem->getClip();
+                    pkg.shrinkOn = newItem->getShrink();
+
+                    /* 记录新Actor的索引（在push前预算，基于当前actorList大小）*/
+                    /* 注意：实际索引由VR线程在processPendingActors中分配，
+                     * 这里暂不更新actorIndexMap（动态添加的Actor索引无法提前预知）
+                     * 如需后续控制该Actor，需要通过其他机制获取真实索引 */
+                    vrThread->queueAddActor(pkg);
+                }
+            }
+
             updateRender();
             renderer->ResetCamera();
             renderWindow->Render();
@@ -299,11 +420,10 @@ void MainWindow::handleOptionsButton()
     if (dialog.exec() == QDialog::Accepted) {
         selectedPart->set(0, dialog.getName());
 
-        /* 更新可见性 */
         bool newVisible = dialog.getIsVisible();
         selectedPart->setVisible(newVisible);
 
-        /* 更新颜色（写入共享Property，VR Actor自动同步）*/
+        /* 颜色写入共享Property，VR Actor自动同步 */
         selectedPart->setColour(
             static_cast<unsigned char>(dialog.getR()),
             static_cast<unsigned char>(dialog.getG()),
@@ -350,7 +470,7 @@ void MainWindow::handleClipToggle(bool checked)
     selectedPart->setClip(checked);
     updateRender();
 
-    /* 同步到VR线程：value = filterType*10 + enabled */
+    /* 同步到VR：value = filterType*10 + (enabled?1:0) */
     if (vrThread != nullptr && vrThread->isRunning()) {
         int idx = getActorIndex(selectedPart);
         double value = FILTER_CLIP * 10.0 + (checked ? 1.0 : 0.0);
@@ -379,7 +499,6 @@ void MainWindow::handleShrinkToggle(bool checked)
     selectedPart->setShrink(checked);
     updateRender();
 
-    /* 同步到VR线程：value = filterType*10 + enabled */
     if (vrThread != nullptr && vrThread->isRunning()) {
         int idx = getActorIndex(selectedPart);
         double value = FILTER_SHRINK * 10.0 + (checked ? 1.0 : 0.0);
@@ -406,6 +525,124 @@ void MainWindow::updateRender()
     }
 
     renderer->Render();
+}
+
+/* ================================================================
+ * 【加分功能A-1】批量目录加载
+ *
+ * 流程：
+ *   1. QFileDialog::getExistingDirectory 选择根目录
+ *   2. QDirIterator 递归遍历，找出所有 *.stl
+ *   3. 目录结构映射为树状父子节点
+ *      - 每级子目录对应一个非叶节点（若已存在则复用）
+ *      - 文件名作为叶节点名，加载 STL
+ *   4. VR 线程运行时，同步推送新 Actor
+ * ================================================================ */
+void MainWindow::on_actionOpen_Directory_triggered()
+{
+    QString rootDir = QFileDialog::getExistingDirectory(
+        this,
+        tr("Select Directory to Load"),
+        QDir::homePath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (rootDir.isEmpty())
+        return;
+
+    /* 在树中为此根目录创建一个顶级父节点，以目录名命名 */
+    QDir dir(rootDir);
+    ModelPart* rootItem  = partList->getRootItem();
+    QString    dirName   = dir.dirName().isEmpty() ? rootDir : dir.dirName();
+    ModelPart* dirRoot   = new ModelPart({ dirName, "true", 200, 200, 200 });
+    rootItem->appendChild(dirRoot);
+
+    int loadedCount = 0;
+
+    /* -------------------------------------------------------
+     * 递归辅助 lambda：根据相对路径段构建/复用中间目录节点
+     * ------------------------------------------------------- */
+    std::function<ModelPart*(ModelPart*, const QStringList&, int)> ensurePath;
+    ensurePath = [&](ModelPart* parent, const QStringList& parts, int depth) -> ModelPart*
+    {
+        if (depth >= parts.size() - 1)   /* 最后一段是文件名，由调用者处理 */
+            return parent;
+
+        const QString& seg = parts[depth];
+
+        /* 查找是否已有同名子节点（避免重复）*/
+        for (int i = 0; i < parent->childCount(); ++i) {
+            ModelPart* child = parent->child(i);
+            if (child->data(0).toString() == seg)
+                return ensurePath(child, parts, depth + 1);
+        }
+
+        /* 不存在则新建目录节点 */
+        ModelPart* node = new ModelPart({ seg, "true", 180, 180, 180 });
+        parent->appendChild(node);
+        return ensurePath(node, parts, depth + 1);
+    };
+
+    /* -------------------------------------------------------
+     * QDirIterator 递归遍历所有 .stl 文件
+     * ------------------------------------------------------- */
+    QDirIterator it(rootDir,
+                    QStringList() << "*.stl" << "*.STL",
+                    QDir::Files,
+                    QDirIterator::Subdirectories);
+
+    while (it.hasNext()) {
+        QString filePath = it.next();
+        QFileInfo fi(filePath);
+
+        /* 计算相对路径，拆分为路径段列表（含文件名作最后一段）*/
+        QString    relPath = dir.relativeFilePath(filePath);
+        QStringList parts  = relPath.split('/', Qt::SkipEmptyParts);
+
+        /* 找到或创建中间目录节点 */
+        ModelPart* parentNode = ensurePath(dirRoot, parts, 0);
+
+        /* 创建叶节点（以文件名命名）并加载 STL */
+        QString    fileName = fi.fileName();
+        ModelPart* fileNode = new ModelPart({ fileName, "true", 255, 255, 255 });
+        parentNode->appendChild(fileNode);
+        fileNode->loadSTL(filePath);
+
+        /* VR 线程运行时动态推送 Actor */
+        if (vrThread != nullptr && vrThread->isRunning()) {
+            vtkActor* vrActor = fileNode->getNewActor();
+            if (vrActor) {
+                ActorPackage pkg;
+                pkg.actor    = vrActor;
+                pkg.reader   = vtkSmartPointer<vtkSTLReader>(fileNode->getReader());
+                pkg.clipOn   = fileNode->getClip();
+                pkg.shrinkOn = fileNode->getShrink();
+                vrThread->queueAddActor(pkg);
+            }
+        }
+
+        ++loadedCount;
+    }
+
+    /* 刷新树视图与渲染 */
+    ui->treeView->model()->layoutChanged();
+    ui->treeView->expandAll();
+
+    updateRender();
+    renderer->ResetCamera();
+    renderWindow->Render();
+
+    if (loadedCount > 0) {
+        emit statusUpdateMessage(
+            QString("Loaded %1 STL file(s) from: %2").arg(loadedCount).arg(dirName), 0);
+    } else {
+        /* 如果目录里没有任何 STL，移除刚才创建的空父节点 */
+        QModelIndex rootNodeIndex = partList->index(
+            rootItem->childCount() - 1, 0, QModelIndex());
+        partList->removeItem(rootNodeIndex);
+        ui->treeView->model()->layoutChanged();
+        emit statusUpdateMessage("No STL files found in the selected directory.", 3000);
+    }
 }
 
 void MainWindow::updateRenderFromTree(const QModelIndex& index)
