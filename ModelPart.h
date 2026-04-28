@@ -21,10 +21,13 @@
 #include <vtkColor.h>
 
 /* 滤镜头文件 */
-#include <vtkClipDataSet.h>
-#include <vtkShrinkFilter.h>
+#include <vtkCutter.h>
 #include <vtkPlane.h>
+#include <vtkAppendPolyData.h>
+#include <vtkTubeFilter.h>
 #include <vtkPolyDataMapper.h>
+#include <vtkShrinkFilter.h>
+#include <vtkClipDataSet.h>
 #include <vtkDataSetMapper.h>
 
 class ModelPart {
@@ -166,8 +169,22 @@ private:
     vtkColor3<unsigned char>         colour;         /**< 当前颜色（R,G,B 0-255）*/
 
     /* 滤镜对象（在loadSTL中创建，通过flag控制是否接入pipeline）*/
-    vtkSmartPointer<vtkClipDataSet>  clipFilter;     /**< 裁剪滤镜：在x=0处截断几何体 */
-    vtkSmartPointer<vtkShrinkFilter> shrinkFilter;   /**< 收缩滤镜：将cell向质心收缩 */
+
+    /**
+     * 多截面切片滤镜（替代原单平面 clip）
+     *
+     * 沿模型的主要轴方向（Y轴，对应赛车高度方向）等间距切 NUM_SLICES 个截面，
+     * 每个截面用 vtkCutter 切出轮廓线，合并为一个 vtkAppendPolyData，
+     * 再用 vtkTubeFilter 加粗，呈现工程图纸剖视截面效果。
+     */
+    static constexpr int NUM_SLICES = 12;  /**< 截面数量 */
+    vtkSmartPointer<vtkAppendPolyData>   sliceAppend;    /**< 合并所有截面输出 */
+    vtkSmartPointer<vtkTubeFilter>       sliceTube;      /**< 截面线加粗 */
+    vtkSmartPointer<vtkCutter>           cutters[NUM_SLICES]; /**< 各截面切割器 */
+    vtkSmartPointer<vtkPlane>            cutPlanes[NUM_SLICES]; /**< 各截面平面 */
+
+    vtkSmartPointer<vtkClipDataSet>      clipFilter;     /**< 保留原clip（shrink组合用）*/
+    vtkSmartPointer<vtkShrinkFilter>     shrinkFilter;   /**< 收缩滤镜 */
 
     bool isClipped = false;  /**< 裁剪滤镜是否激活 */
     bool isShrunk  = false;  /**< 收缩滤镜是否激活 */

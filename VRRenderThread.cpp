@@ -27,11 +27,25 @@
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderWindowInteractor.h>
+#include <vtkCallbackCommand.h>
 #include <vtkImageData.h>
 #include <vtkTexture.h>
 #include <vtkSkybox.h>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
+
+/* ================================================================
+ * 【B方案】颜色循环表（CMD_VR_SET_COLOUR 依次切换）
+ * ================================================================ */
+const int VRRenderThread::colorTable[VRRenderThread::COLOR_COUNT][3] = {
+    {255, 255, 255},   /* 白 */
+    {220,  50,  50},   /* 红 */
+    {50,  180,  50},   /* 绿 */
+    {50,  120, 220},   /* 蓝 */
+    {220, 180,  50},   /* 黄 */
+    {180,  50, 220},   /* 紫 */
+};
 
 /* ================================================================
  * 构造 / 析构
@@ -41,20 +55,67 @@ VRRenderThread::VRRenderThread(QObject* parent)
     : QThread(parent)
     , isRotating(false)
     , mainLightIntensity(0.8)
+    , selectedActorIndex(-1)
 {
+    savedColor[0] = savedColor[1] = savedColor[2] = 1.0;
 }
 
 VRRenderThread::~VRRenderThread()
 {
-    /* 确保线程安全停止 */
     if (isRunning()) {
         requestInterruption();
         wait(5000);
     }
-    /* 释放由 getNewActor() 创建的裸指针Actor */
     for (vtkActor* a : actorList) {
         if (a) a->Delete();
     }
+}
+
+/* ================================================================
+ * 【B方案】辅助：高亮 / 取消高亮
+ * ================================================================ */
+void VRRenderThread::highlightActor(int idx, bool on)
+{
+    if (idx < 0 || idx >= actorList.size() || !actorList[idx]) return;
+    vtkProperty* prop = actorList[idx]->GetProperty();
+    if (on) {
+        /* 保存原色 */
+        prop->GetDiffuseColor(savedColor);
+        /* 亮黄色高亮 + 加粗边缘线 */
+        prop->SetDiffuseColor(1.0, 0.95, 0.0);
+        prop->SetEdgeVisibility(1);
+        prop->SetEdgeColor(1.0, 1.0, 0.0);
+        prop->SetLineWidth(3.0);
+    } else {
+        /* 恢复原色 */
+        prop->SetDiffuseColor(savedColor);
+        prop->SetEdgeVisibility(0);
+        prop->SetLineWidth(1.0);
+    }
+}
+
+/* ================================================================
+ * 【B方案】辅助：鼠标坐标射线拾取 → actor 索引
+ * ================================================================ */
+int VRRenderThread::pickActorAt(int x, int y, vtkRenderer* renderer)
+{
+    vtkNew<vtkPropPicker> picker;
+    picker->Pick(x, y, 0, renderer);
+    vtkActor* hit = picker->GetActor();
+    if (!hit) return -1;
+    for (int i = 0; i < actorList.size(); ++i) {
+        if (actorList[i] == hit) return i;
+    }
+    return -1;
+}
+
+/* ================================================================
+ * 【B方案】注册零件名称
+ * ================================================================ */
+void VRRenderThread::setActorName(int index, const QString& name)
+{
+    while (actorNames.size() <= index) actorNames.append("");
+    actorNames[index] = name;
 }
 
 /* ================================================================
@@ -88,13 +149,14 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
     mapperList.append(vtkSmartPointer<vtkDataSetMapper>::New()); /* 占位，未使用 */
     clipState.append(clipOn);
     shrinkState.append(shrinkOn);
+    actorNames.append("");
+    actorColorIdx.append(0);
 
     return idx;
 }
 
 void VRRenderThread::clearActors()
 {
-    /* 清空所有列表，但不Delete Actor（由析构函数负责）*/
     actorList.clear();
     readerList.clear();
     mapperList.clear();
@@ -102,6 +164,9 @@ void VRRenderThread::clearActors()
     shrinkFilters.clear();
     clipState.clear();
     shrinkState.clear();
+    actorNames.clear();
+    actorColorIdx.clear();
+    selectedActorIndex = -1;
 }
 
 void VRRenderThread::issueCommand(int cmd, double value, int actorIndex)
@@ -229,7 +294,6 @@ void VRRenderThread::runDesktopMode()
     interactor->SetRenderWindow(renderWindow);
     renderer->SetBackground(0.05, 0.05, 0.15);
 
-    /* 添加所有模型Actor */
     for (vtkActor* actor : actorList) {
         if (actor) renderer->AddActor(actor);
     }
@@ -243,12 +307,40 @@ void VRRenderThread::runDesktopMode()
     renderer->GetActiveCamera()->Azimuth(30);
     renderer->GetActiveCamera()->Elevation(30);
     renderer->ResetCameraClippingRange();
+
+    /* ---- 【B方案】Observer：在循环外注册一次，整个生命周期有效 ---- */
+    struct PickState {
+        bool clickPending = false;
+        int  clickX = 0, clickY = 0;
+        char keyPending = 0;
+    };
+    auto pickState = std::make_shared<PickState>();
+
+    vtkNew<vtkCallbackCommand> clickCb;
+    clickCb->SetCallback([](vtkObject* caller, unsigned long, void* cd, void*) {
+        auto* inter = static_cast<vtkRenderWindowInteractor*>(caller);
+        auto* ps    = static_cast<PickState*>(cd);
+        ps->clickPending = true;
+        ps->clickX = inter->GetEventPosition()[0];
+        ps->clickY = inter->GetEventPosition()[1];
+    });
+    clickCb->SetClientData(pickState.get());
+    interactor->AddObserver(vtkCommand::LeftButtonPressEvent, clickCb);
+
+    vtkNew<vtkCallbackCommand> keyCb;
+    keyCb->SetCallback([](vtkObject* caller, unsigned long, void* cd, void*) {
+        auto* inter = static_cast<vtkRenderWindowInteractor*>(caller);
+        auto* ps    = static_cast<PickState*>(cd);
+        ps->keyPending = inter->GetKeyCode();
+    });
+    keyCb->SetClientData(pickState.get());
+    interactor->AddObserver(vtkCommand::KeyPressEvent, keyCb);
+
     renderWindow->Render();
 
     /* ---- 桌面渲染循环 ---- */
     while (!isInterruptionRequested()) {
 
-        /* 批量取出命令队列 */
         mutex.lock();
         QQueue<VRCmd> localQueue;
         localQueue.swap(commandQueue);
@@ -258,10 +350,8 @@ void VRRenderThread::runDesktopMode()
             processCommandDesktop(localQueue.dequeue(), renderer.Get());
         }
 
-        /* 处理动态添加的Actor */
         processPendingActorsDesktop(renderer.Get());
 
-        /* 旋转动画 */
         if (isRotating) {
             renderer->GetActiveCamera()->Azimuth(0.5);
             renderer->ResetCameraClippingRange();
@@ -270,12 +360,72 @@ void VRRenderThread::runDesktopMode()
         renderWindow->Render();
         interactor->ProcessEvents();
 
-        /* 用户关闭预览窗口时退出 */
+        /* ---- 【B方案】处理鼠标点击拾取 ---- */
+        if (pickState->clickPending) {
+            pickState->clickPending = false;
+            int hit = pickActorAt(pickState->clickX, pickState->clickY, renderer.Get());
+
+            if (hit >= 0 && hit == selectedActorIndex) {
+                highlightActor(selectedActorIndex, false);
+                selectedActorIndex = -1;
+                emit vrActorSelected(-1, "");
+            } else {
+                if (selectedActorIndex >= 0)
+                    highlightActor(selectedActorIndex, false);
+                selectedActorIndex = hit;
+                if (hit >= 0) {
+                    highlightActor(hit, true);
+                    QString name = (hit < actorNames.size())
+                                   ? actorNames[hit]
+                                   : QString("Actor %1").arg(hit);
+                    emit vrActorSelected(hit, name);
+                } else {
+                    emit vrActorSelected(-1, "");
+                }
+            }
+        }
+
+        /* ---- 【B方案】键盘快捷键（选中状态下）----
+         *   V=可见性  S=Slice  K=Shrink  C=循环颜色 */
+        if (pickState->keyPending != 0 && selectedActorIndex >= 0) {
+            char key = pickState->keyPending;
+            int  si  = selectedActorIndex;
+            switch (key) {
+            case 'v': case 'V':
+                if (actorList[si])
+                    actorList[si]->SetVisibility(!actorList[si]->GetVisibility());
+                break;
+            case 's': case 'S':
+                clipState[si] = !clipState[si];
+                rebuildPipeline(si);
+                break;
+            case 'k': case 'K':
+                shrinkState[si] = !shrinkState[si];
+                rebuildPipeline(si);
+                break;
+            case 'c': case 'C': {
+                while (actorColorIdx.size() <= si) actorColorIdx.append(0);
+                actorColorIdx[si] = (actorColorIdx[si] + 1) % COLOR_COUNT;
+                int ci = actorColorIdx[si];
+                actorList[si]->GetProperty()->SetDiffuseColor(
+                    colorTable[ci][0] / 255.0,
+                    colorTable[ci][1] / 255.0,
+                    colorTable[ci][2] / 255.0);
+                savedColor[0] = colorTable[ci][0] / 255.0;
+                savedColor[1] = colorTable[ci][1] / 255.0;
+                savedColor[2] = colorTable[ci][2] / 255.0;
+                break;
+            }
+            default: break;
+            }
+        }
+        pickState->keyPending = 0;
+
         if (renderWindow->GetSize()[0] == 0 && renderWindow->GetSize()[1] == 0) {
             break;
         }
 
-        QThread::msleep(16);   /* ~60 fps */
+        QThread::msleep(16);
     }
 }
 
@@ -503,10 +653,64 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
 
     case CMD_SET_LIGHT_INTENSITY:
         mainLightIntensity = vcmd.value;
-        if (mainLight) {
-            mainLight->SetIntensity(mainLightIntensity);
+        if (mainLight) mainLight->SetIntensity(mainLightIntensity);
+        break;
+
+    /* ---- 【B方案】VR内选中属性修改命令 ---- */
+    case CMD_VR_SELECT_ACTOR: {
+        int idx = vcmd.actorIndex;
+        if (selectedActorIndex >= 0)
+            highlightActor(selectedActorIndex, false);
+        selectedActorIndex = idx;
+        if (idx >= 0) highlightActor(idx, true);
+        break;
+    }
+    case CMD_VR_DESELECT:
+        if (selectedActorIndex >= 0)
+            highlightActor(selectedActorIndex, false);
+        selectedActorIndex = -1;
+        break;
+
+    case CMD_VR_TOGGLE_VISIBLE: {
+        int si = selectedActorIndex;
+        if (si >= 0 && si < actorList.size() && actorList[si]) {
+            bool vis = actorList[si]->GetVisibility();
+            actorList[si]->SetVisibility(!vis);
         }
         break;
+    }
+    case CMD_VR_TOGGLE_SLICE: {
+        int si = selectedActorIndex;
+        if (si >= 0 && si < actorList.size()) {
+            clipState[si] = !clipState[si];
+            rebuildPipeline(si);
+        }
+        break;
+    }
+    case CMD_VR_TOGGLE_SHRINK: {
+        int si = selectedActorIndex;
+        if (si >= 0 && si < actorList.size()) {
+            shrinkState[si] = !shrinkState[si];
+            rebuildPipeline(si);
+        }
+        break;
+    }
+    case CMD_VR_SET_COLOUR: {
+        int si = selectedActorIndex;
+        if (si >= 0 && si < actorList.size() && actorList[si]) {
+            while (actorColorIdx.size() <= si) actorColorIdx.append(0);
+            actorColorIdx[si] = (actorColorIdx[si] + 1) % COLOR_COUNT;
+            int ci = actorColorIdx[si];
+            actorList[si]->GetProperty()->SetDiffuseColor(
+                colorTable[ci][0]/255.0,
+                colorTable[ci][1]/255.0,
+                colorTable[ci][2]/255.0);
+            savedColor[0] = colorTable[ci][0]/255.0;
+            savedColor[1] = colorTable[ci][1]/255.0;
+            savedColor[2] = colorTable[ci][2]/255.0;
+        }
+        break;
+    }
 
     case CMD_START_ROTATE:
         isRotating = true;
@@ -754,14 +958,87 @@ void VRRenderThread::setupLightingDesktop(vtkRenderer* renderer)
  * 地板
  * ================================================================ */
 
+/* ================================================================
+ * 地板
+ * 地板固定在 Y=0（代表 VR 世界的地面）。
+ * 所有模型 Actor 整体向上平移，使其底部位于 Y≈1.2（桌面/展示台高度），
+ * 人站在地板上时零件自然处于正前方视线高度。
+ * ================================================================ */
+
 static void buildFloorActor(vtkRenderer* renderer)
 {
-    /* 20x20单位的灰色地板平面，y=-1使其位于模型正下方 */
+    /* ---- 步骤1：计算所有模型Actor的整体包围盒 ---- */
+    double sceneBounds[6] = {0,0,0,0,0,0};
+    bool   hasBounds      = false;
+
+    vtkActorCollection* actors = renderer->GetActors();
+    actors->InitTraversal();
+    while (vtkActor* a = actors->GetNextActor()) {
+        if (a->GetMapper()) a->GetMapper()->Update();
+        double b[6];
+        a->GetBounds(b);
+        if (b[0] > b[1]) continue;   /* 跳过无效包围盒 */
+        if (!hasBounds) {
+            for (int i = 0; i < 6; ++i) sceneBounds[i] = b[i];
+            hasBounds = true;
+        } else {
+            if (b[0] < sceneBounds[0]) sceneBounds[0] = b[0];
+            if (b[1] > sceneBounds[1]) sceneBounds[1] = b[1];
+            if (b[2] < sceneBounds[2]) sceneBounds[2] = b[2];
+            if (b[3] > sceneBounds[3]) sceneBounds[3] = b[3];
+            if (b[4] < sceneBounds[4]) sceneBounds[4] = b[4];
+            if (b[5] > sceneBounds[5]) sceneBounds[5] = b[5];
+        }
+    }
+
+    /* ---- 步骤2：把所有模型Actor整体上移，底部贴齐 Y=1.2 ----
+     * VR 世界里人眼高约 1.6m，零件底部在 1.2m 处视觉上位于正前方。 */
+    const double TARGET_FLOOR_Y = 0.0;   /* 地板 Y 坐标（世界地面）*/
+    const double DISPLAY_HEIGHT = 1.2;   /* 零件底部离地高度（米）*/
+
+    if (hasBounds) {
+        double modelBottomY = sceneBounds[2];   /* 当前零件包围盒底部 */
+        double shiftY = (TARGET_FLOOR_Y + DISPLAY_HEIGHT) - modelBottomY;
+
+        actors->InitTraversal();
+        while (vtkActor* a = actors->GetNextActor()) {
+            double pos[3];
+            a->GetPosition(pos);
+            a->SetPosition(pos[0], pos[1] + shiftY, pos[2]);
+        }
+
+        /* 平移后重新取包围盒，用于确定地板范围 */
+        for (int i = 0; i < 6; ++i) sceneBounds[i] = 0;
+        hasBounds = false;
+        actors->InitTraversal();
+        while (vtkActor* a = actors->GetNextActor()) {
+            double b[6]; a->GetBounds(b);
+            if (b[0] > b[1]) continue;
+            if (!hasBounds) {
+                for (int i=0;i<6;++i) sceneBounds[i]=b[i];
+                hasBounds = true;
+            } else {
+                if (b[0]<sceneBounds[0]) sceneBounds[0]=b[0];
+                if (b[1]>sceneBounds[1]) sceneBounds[1]=b[1];
+                if (b[4]<sceneBounds[4]) sceneBounds[4]=b[4];
+                if (b[5]>sceneBounds[5]) sceneBounds[5]=b[5];
+            }
+        }
+    }
+
+    /* ---- 步骤3：创建地板，固定在 Y=0，尺寸覆盖模型水平范围 ---- */
+    double spanX = hasBounds ? (sceneBounds[1] - sceneBounds[0]) : 20.0;
+    double spanZ = hasBounds ? (sceneBounds[5] - sceneBounds[4]) : 20.0;
+    double halfX = std::max(spanX * 2.0, 15.0);
+    double halfZ = std::max(spanZ * 2.0, 15.0);
+    double cx    = hasBounds ? (sceneBounds[0] + sceneBounds[1]) / 2.0 : 0.0;
+    double cz    = hasBounds ? (sceneBounds[4] + sceneBounds[5]) / 2.0 : 0.0;
+
     vtkNew<vtkPlaneSource> floorPlane;
-    floorPlane->SetOrigin(-10.0, -1.0, -10.0);
-    floorPlane->SetPoint1( 10.0, -1.0, -10.0);
-    floorPlane->SetPoint2(-10.0, -1.0,  10.0);
-    floorPlane->SetResolution(10, 10);
+    floorPlane->SetOrigin(cx - halfX, TARGET_FLOOR_Y, cz - halfZ);
+    floorPlane->SetPoint1(cx + halfX, TARGET_FLOOR_Y, cz - halfZ);
+    floorPlane->SetPoint2(cx - halfX, TARGET_FLOOR_Y, cz + halfZ);
+    floorPlane->SetResolution(20, 20);
     floorPlane->Update();
 
     vtkNew<vtkPolyDataMapper> floorMapper;
