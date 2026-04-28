@@ -13,6 +13,7 @@
 #include <vtkActor.h>
 #include <vtkProperty.h>
 #include <vtkCamera.h>
+#include <vtkLight.h>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -100,6 +101,33 @@ MainWindow::MainWindow(QWidget* parent)
     renderer->GetActiveCamera()->Azimuth(30);
     renderer->GetActiveCamera()->Elevation(30);
     renderer->ResetCameraClippingRange();
+
+    /* ---- GUI侧双光源初始化 ----
+     * 关闭VTK默认的headlight，改用手动定位的主光+补光，
+     * 这样滑块才能真正影响桌面窗口里的光照效果。 */
+    renderer->AutomaticLightCreationOff();   /* 禁用VTK自动headlight */
+
+    /* 主光（Key Light）：右上前方，暖白色，初始强度0.8 */
+    guiKeyLight = vtkSmartPointer<vtkLight>::New();
+    guiKeyLight->SetLightTypeToSceneLight();
+    guiKeyLight->SetPosition(1.0, 1.0, 1.0);
+    guiKeyLight->SetFocalPoint(0.0, 0.0, 0.0);
+    guiKeyLight->SetDiffuseColor(1.0, 0.98, 0.95);   /* 略带暖色 */
+    guiKeyLight->SetAmbientColor(0.1, 0.1, 0.1);
+    guiKeyLight->SetSpecularColor(1.0, 1.0, 1.0);
+    guiKeyLight->SetIntensity(0.8);
+    renderer->AddLight(guiKeyLight);
+
+    /* 补光（Fill Light）：左下后方，冷蓝色，强度固定为主光40%，提供轮廓感 */
+    guiFillLight = vtkSmartPointer<vtkLight>::New();
+    guiFillLight->SetLightTypeToSceneLight();
+    guiFillLight->SetPosition(-1.0, -0.5, -0.8);
+    guiFillLight->SetFocalPoint(0.0, 0.0, 0.0);
+    guiFillLight->SetDiffuseColor(0.7, 0.85, 1.0);   /* 冷蓝补光 */
+    guiFillLight->SetAmbientColor(0.0, 0.0, 0.0);
+    guiFillLight->SetSpecularColor(0.5, 0.5, 0.5);
+    guiFillLight->SetIntensity(0.32);                 /* 主光的40% */
+    renderer->AddLight(guiFillLight);
 
     /* 初始渲染，确保背景立即显示 */
     renderWindow->Render();
@@ -211,12 +239,23 @@ void MainWindow::handleResetView()
 /* ================================================================
  * 【创意功能】光照强度滑块
  * 滑块值 0~100 → 光照强度 0.0~2.0
+ * 同时更新 GUI 渲染器的主光源（补光保持主光40%比例）
  * ================================================================ */
 void MainWindow::handleLightIntensityChanged(int value)
 {
     /* 将0~100的滑块值线性映射到0.0~2.0的光照强度 */
     double intensity = value / 100.0 * 2.0;
 
+    /* ---- GUI侧：同步更新桌面窗口的光照 ---- */
+    if (guiKeyLight) {
+        guiKeyLight->SetIntensity(intensity);
+    }
+    if (guiFillLight) {
+        guiFillLight->SetIntensity(intensity * 0.4);  /* 补光始终保持主光的40% */
+    }
+    renderWindow->Render();   /* 立即刷新，桌面窗口可见光照变化 */
+
+    /* ---- VR侧：同步命令到VR线程 ---- */
     if (vrThread != nullptr && vrThread->isRunning()) {
         vrThread->issueCommand(CMD_SET_LIGHT_INTENSITY, intensity);
     }

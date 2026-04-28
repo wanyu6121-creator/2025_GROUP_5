@@ -9,6 +9,7 @@
 #include <vtkSmartPointer.h>
 #include <vtkRenderer.h>
 #include <vtkGenericOpenGLRenderWindow.h>
+#include <vtkLight.h>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -112,6 +113,12 @@ private:
 
     /** ModelPart指针 → VR actorIndex 映射表 */
     QMap<ModelPart*, int>                         actorIndexMap;
+
+    /** GUI侧主光源（Key Light）——受滑块控制 */
+    vtkSmartPointer<vtkLight>                     guiKeyLight;
+
+    /** GUI侧补光（Fill Light）——强度固定为主光的40% */
+    vtkSmartPointer<vtkLight>                     guiFillLight;
 };
 
 #endif // MAINWINDOW_H
