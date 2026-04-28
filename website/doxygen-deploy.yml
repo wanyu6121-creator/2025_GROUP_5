@@ -1,0 +1,40 @@
+name: Deploy Doxygen to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+
+      - name: Run Doxygen
+        run: doxygen Doxyfile
+
+      - name: Debug html output
+        run: |
+          pwd
+          ls -la
+          ls -la html
+          test -f html/index.html
+
+      - name: Add nojekyll
+        run: touch html/.nojekyll
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./html
+          force_orphan: true
