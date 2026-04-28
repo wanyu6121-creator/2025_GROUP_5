@@ -754,14 +754,87 @@ void VRRenderThread::setupLightingDesktop(vtkRenderer* renderer)
  * 地板
  * ================================================================ */
 
+/* ================================================================
+ * 地板
+ * 地板固定在 Y=0（代表 VR 世界的地面）。
+ * 所有模型 Actor 整体向上平移，使其底部位于 Y≈1.2（桌面/展示台高度），
+ * 人站在地板上时零件自然处于正前方视线高度。
+ * ================================================================ */
+
 static void buildFloorActor(vtkRenderer* renderer)
 {
-    /* 20x20单位的灰色地板平面，y=-1使其位于模型正下方 */
+    /* ---- 步骤1：计算所有模型Actor的整体包围盒 ---- */
+    double sceneBounds[6] = {0,0,0,0,0,0};
+    bool   hasBounds      = false;
+
+    vtkActorCollection* actors = renderer->GetActors();
+    actors->InitTraversal();
+    while (vtkActor* a = actors->GetNextActor()) {
+        if (a->GetMapper()) a->GetMapper()->Update();
+        double b[6];
+        a->GetBounds(b);
+        if (b[0] > b[1]) continue;   /* 跳过无效包围盒 */
+        if (!hasBounds) {
+            for (int i = 0; i < 6; ++i) sceneBounds[i] = b[i];
+            hasBounds = true;
+        } else {
+            if (b[0] < sceneBounds[0]) sceneBounds[0] = b[0];
+            if (b[1] > sceneBounds[1]) sceneBounds[1] = b[1];
+            if (b[2] < sceneBounds[2]) sceneBounds[2] = b[2];
+            if (b[3] > sceneBounds[3]) sceneBounds[3] = b[3];
+            if (b[4] < sceneBounds[4]) sceneBounds[4] = b[4];
+            if (b[5] > sceneBounds[5]) sceneBounds[5] = b[5];
+        }
+    }
+
+    /* ---- 步骤2：把所有模型Actor整体上移，底部贴齐 Y=1.2 ----
+     * VR 世界里人眼高约 1.6m，零件底部在 1.2m 处视觉上位于正前方。 */
+    const double TARGET_FLOOR_Y = 0.0;   /* 地板 Y 坐标（世界地面）*/
+    const double DISPLAY_HEIGHT = 1.2;   /* 零件底部离地高度（米）*/
+
+    if (hasBounds) {
+        double modelBottomY = sceneBounds[2];   /* 当前零件包围盒底部 */
+        double shiftY = (TARGET_FLOOR_Y + DISPLAY_HEIGHT) - modelBottomY;
+
+        actors->InitTraversal();
+        while (vtkActor* a = actors->GetNextActor()) {
+            double pos[3];
+            a->GetPosition(pos);
+            a->SetPosition(pos[0], pos[1] + shiftY, pos[2]);
+        }
+
+        /* 平移后重新取包围盒，用于确定地板范围 */
+        for (int i = 0; i < 6; ++i) sceneBounds[i] = 0;
+        hasBounds = false;
+        actors->InitTraversal();
+        while (vtkActor* a = actors->GetNextActor()) {
+            double b[6]; a->GetBounds(b);
+            if (b[0] > b[1]) continue;
+            if (!hasBounds) {
+                for (int i=0;i<6;++i) sceneBounds[i]=b[i];
+                hasBounds = true;
+            } else {
+                if (b[0]<sceneBounds[0]) sceneBounds[0]=b[0];
+                if (b[1]>sceneBounds[1]) sceneBounds[1]=b[1];
+                if (b[4]<sceneBounds[4]) sceneBounds[4]=b[4];
+                if (b[5]>sceneBounds[5]) sceneBounds[5]=b[5];
+            }
+        }
+    }
+
+    /* ---- 步骤3：创建地板，固定在 Y=0，尺寸覆盖模型水平范围 ---- */
+    double spanX = hasBounds ? (sceneBounds[1] - sceneBounds[0]) : 20.0;
+    double spanZ = hasBounds ? (sceneBounds[5] - sceneBounds[4]) : 20.0;
+    double halfX = std::max(spanX * 2.0, 15.0);
+    double halfZ = std::max(spanZ * 2.0, 15.0);
+    double cx    = hasBounds ? (sceneBounds[0] + sceneBounds[1]) / 2.0 : 0.0;
+    double cz    = hasBounds ? (sceneBounds[4] + sceneBounds[5]) / 2.0 : 0.0;
+
     vtkNew<vtkPlaneSource> floorPlane;
-    floorPlane->SetOrigin(-10.0, -1.0, -10.0);
-    floorPlane->SetPoint1( 10.0, -1.0, -10.0);
-    floorPlane->SetPoint2(-10.0, -1.0,  10.0);
-    floorPlane->SetResolution(10, 10);
+    floorPlane->SetOrigin(cx - halfX, TARGET_FLOOR_Y, cz - halfZ);
+    floorPlane->SetPoint1(cx + halfX, TARGET_FLOOR_Y, cz - halfZ);
+    floorPlane->SetPoint2(cx - halfX, TARGET_FLOOR_Y, cz + halfZ);
+    floorPlane->SetResolution(20, 20);
     floorPlane->Update();
 
     vtkNew<vtkPolyDataMapper> floorMapper;

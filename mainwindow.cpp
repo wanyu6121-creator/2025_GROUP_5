@@ -142,7 +142,9 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::handleLightIntensityChanged);
     ui->sliderLightIntensity->setValue(40);  /* 初始强度 0.8 = 40/100*2.0 */
 
-    /* ---- 【加分功能】删除节点：已通过右键菜单 actionDelete_Node 连接，见上方 ---- */
+    /* ---- 【加分功能】删除节点：右键菜单 + Delete Node 按钮 两路触发 ---- */
+    connect(ui->pushButtonDelete, &QPushButton::released,
+            this, &MainWindow::handleDeleteNode);
 
     /* ---- 初始化TreeView ---- */
     this->partList = new ModelPartList("PartsList");
@@ -341,11 +343,24 @@ void MainWindow::handleLightIntensityChanged(int value)
 
 /* ================================================================
  * 【加分功能】删除选中节点
- * 同步从GUI渲染器和VR线程中移除对应Actor
+ * 递归移除子节点的所有 Actor，兼容右键菜单触发（无需先点击选中）
  * ================================================================ */
+
+/* 递归从 GUI renderer 移除节点及其所有子节点的 Actor */
+static void removeActorsRecursive(ModelPart* part, vtkRenderer* renderer)
+{
+    if (!part) return;
+    vtkSmartPointer<vtkActor> actor = part->getActor();
+    if (actor) renderer->RemoveActor(actor);
+    for (int i = 0; i < part->childCount(); ++i)
+        removeActorsRecursive(part->child(i), renderer);
+}
+
 void MainWindow::handleDeleteNode()
 {
-    QModelIndex index = ui->treeView->currentIndex();
+    /* 右键菜单触发时 currentIndex() 可能无效，
+     * 改用 selectionModel 的当前索引（hover 选中即可）*/
+    QModelIndex index = ui->treeView->selectionModel()->currentIndex();
 
     if (!index.isValid()) {
         emit statusUpdateMessage("Select a node to delete first!", 2000);
@@ -354,7 +369,7 @@ void MainWindow::handleDeleteNode()
 
     ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
 
-    /* 不允许删除根节点 */
+    /* 不允许删除根节点（parentItem 为 nullptr 表示是内部 rootItem）*/
     if (selectedPart->parentItem() == nullptr) {
         emit statusUpdateMessage("Cannot delete root node.", 2000);
         return;
@@ -362,29 +377,22 @@ void MainWindow::handleDeleteNode()
 
     QString partName = selectedPart->data(0).toString();
 
-    /* 1. 通知VR线程移除Actor（在GUI操作之前，索引尚有效）*/
+    /* 1. 通知VR线程移除Actor */
     if (vrThread != nullptr && vrThread->isRunning()) {
         int idx = getActorIndex(selectedPart);
-        if (idx >= 0) {
-            vrThread->issueCommand(CMD_REMOVE_ACTOR, 0.0, idx);
-        }
+        if (idx >= 0) vrThread->issueCommand(CMD_REMOVE_ACTOR, 0.0, idx);
     }
 
     /* 2. 从索引映射中移除 */
     actorIndexMap.remove(selectedPart);
 
-    /* 3. 从GUI渲染器移除Actor */
-    vtkSmartPointer<vtkActor> guiActor = selectedPart->getActor();
-    if (guiActor) {
-        renderer->RemoveActor(guiActor);
-    }
+    /* 3. 递归从GUI渲染器移除该节点及所有子节点的Actor */
+    removeActorsRecursive(selectedPart, renderer);
 
-    /* 4. 从树模型中移除节点
-     * removeItem() 内部调用 beginRemoveRows/endRemoveRows（protected方法），
-     * 并通过 ModelPart::removeChild() 级联释放子节点内存 */
+    /* 4. 从树模型中移除节点（内部级联释放内存）*/
     partList->removeItem(index);
 
-    /* 5. 刷新GUI渲染 */
+    /* 5. 刷新 */
     updateRender();
     renderWindow->Render();
 
@@ -461,50 +469,54 @@ void MainWindow::handleTreeClicked()
 
 void MainWindow::on_actionOpen_File_triggered()
 {
-    QString fileName = QFileDialog::getOpenFileName(
-        this, tr("Open File"), "C:\\",
-        tr("STL Files (*.stl);;Text Files (*.txt)")
+    /* getOpenFileNames 允许按住 Ctrl/Shift 多选 */
+    QStringList fileNames = QFileDialog::getOpenFileNames(
+        this, tr("Open STL File(s)"), "C:\\",
+        tr("STL Files (*.stl);;All Files (*)")
     );
 
-    if (!fileName.isEmpty()) {
-        QFileInfo fileInfo(fileName);
-        QString onlyFileName = fileInfo.fileName();
-        QModelIndex index = ui->treeView->currentIndex();
+    if (fileNames.isEmpty())
+        return;
 
-        if (index.isValid()) {
-            ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-            ModelPart* newItem = new ModelPart({ onlyFileName, "true" });
-            selectedPart->appendChild(newItem);
-            ui->treeView->model()->layoutChanged();
-            newItem->loadSTL(fileName);
-
-            /* 【加分功能】VR运行时动态推送新Actor */
-            if (vrThread != nullptr && vrThread->isRunning()) {
-                vtkActor* vrActor = newItem->getNewActor();
-                if (vrActor) {
-                    ActorPackage pkg;
-                    pkg.actor    = vrActor;
-                    pkg.reader   = vtkSmartPointer<vtkSTLReader>(newItem->getReader());
-                    pkg.clipOn   = newItem->getClip();
-                    pkg.shrinkOn = newItem->getShrink();
-
-                    /* 记录新Actor的索引（在push前预算，基于当前actorList大小）*/
-                    /* 注意：实际索引由VR线程在processPendingActors中分配，
-                     * 这里暂不更新actorIndexMap（动态添加的Actor索引无法提前预知）
-                     * 如需后续控制该Actor，需要通过其他机制获取真实索引 */
-                    vrThread->queueAddActor(pkg);
-                }
-            }
-
-            updateRender();
-            renderer->ResetCamera();
-            renderWindow->Render();
-            emit statusUpdateMessage(QString("Loaded: ") + onlyFileName, 0);
-        } else {
-            emit statusUpdateMessage(
-                "Please select a parent item in the tree first!", 0);
-        }
+    QModelIndex index = ui->treeView->currentIndex();
+    if (!index.isValid()) {
+        emit statusUpdateMessage(
+            "Please select a parent item in the tree first!", 0);
+        return;
     }
+
+    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+    int loadedCount = 0;
+
+    for (const QString& fileName : fileNames) {
+        QFileInfo fileInfo(fileName);
+        QString   onlyFileName = fileInfo.fileName();
+
+        ModelPart* newItem = new ModelPart({ onlyFileName, "true" });
+        selectedPart->appendChild(newItem);
+        newItem->loadSTL(fileName);
+
+        /* VR 运行时动态推送新 Actor */
+        if (vrThread != nullptr && vrThread->isRunning()) {
+            vtkActor* vrActor = newItem->getNewActor();
+            if (vrActor) {
+                ActorPackage pkg;
+                pkg.actor    = vrActor;
+                pkg.reader   = vtkSmartPointer<vtkSTLReader>(newItem->getReader());
+                pkg.clipOn   = newItem->getClip();
+                pkg.shrinkOn = newItem->getShrink();
+                vrThread->queueAddActor(pkg);
+            }
+        }
+        ++loadedCount;
+    }
+
+    ui->treeView->model()->layoutChanged();
+    updateRender();
+    renderer->ResetCamera();
+    renderWindow->Render();
+    emit statusUpdateMessage(
+        QString("Loaded %1 STL file(s)").arg(loadedCount), 0);
 }
 
 void MainWindow::handleOptionsButton()
@@ -705,9 +717,11 @@ void MainWindow::on_actionOpen_Directory_triggered()
         QString filePath = it.next();
         QFileInfo fi(filePath);
 
-        /* 计算相对路径，拆分为路径段列表（含文件名作最后一段）*/
-        QString    relPath = dir.relativeFilePath(filePath);
-        QStringList parts  = relPath.split('/', Qt::SkipEmptyParts);
+        /* 计算相对路径，用 QDir::toNativeSeparators 无关写法：
+         * 先把路径统一转为正斜杠再 split，兼容 Windows（\）和 Linux（/）*/
+        QString relPath = dir.relativeFilePath(filePath);
+        relPath = QDir::fromNativeSeparators(relPath);   /* 统一为 '/' */
+        QStringList parts = relPath.split('/', Qt::SkipEmptyParts);
 
         /* 找到或创建中间目录节点 */
         ModelPart* parentNode = ensurePath(dirRoot, parts, 0);
