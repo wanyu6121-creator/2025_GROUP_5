@@ -27,6 +27,14 @@ public slots:
     void handleButton();
     void handleTreeClicked();
     void on_actionOpen_File_triggered();
+
+    /**
+     * @brief 【加分功能A-1】批量目录加载
+     *
+     * 打开目录选择对话框，用 QDirIterator 递归遍历所有 .stl 文件，
+     * 目录结构映射为树状父子节点，文件名作为叶节点名称。
+     */
+    void on_actionOpen_Directory_triggered();
     void handleOptionsButton();
     void on_actionItem_Options_triggered();
     void updateRender();
@@ -55,23 +63,39 @@ public slots:
     /** 重置VR相机视角 */
     void handleResetView();
 
+    /**
+     * @brief 【创意功能】光照强度滑块变化槽
+     *
+     * 将滑块值（0~100）映射为光照强度（0.0~2.0），
+     * 通过 CMD_SET_LIGHT_INTENSITY 命令实时同步到VR线程。
+     *
+     * @param value 滑块当前值（0~100）
+     */
+    void handleLightIntensityChanged(int value);
+
+    /**
+     * @brief 【加分功能】删除选中的树节点
+     *
+     * 从 ModelPartList 移除节点，同步从GUI渲染器移除Actor，
+     * 并通过 CMD_REMOVE_ACTOR 命令通知VR线程移除对应Actor。
+     */
+    void handleDeleteNode();
+
 signals:
     void statusUpdateMessage(const QString& message, int timeout);
 
 private:
-    /** 遍历整棵树，为每个已加载STL的零件创建VR Actor并注册到vrThread
-     *  同时填充 actorIndexMap（ModelPart指针 → actorIndex）
-     */
+    /** 遍历整棵树，为每个已加载STL的零件创建VR Actor并注册 */
     void populateVRActors();
 
-    /** 递归辅助：遍历树节点，收集VR Actor
+    /** 递归辅助：遍历树节点注册VR Actor
      * @param index 当前节点的QModelIndex
      */
     void populateVRActorsFromTree(const QModelIndex& index);
 
-    /** 查找零件在vrThread中注册的actorIndex
-     *  @param part ModelPart指针
-     *  @return actorIndex（未注册返回-1）
+    /** 查找零件在vrThread中的actorIndex
+     * @param part ModelPart指针
+     * @return actorIndex，未注册返回-1
      */
     int getActorIndex(ModelPart* part) const;
 
@@ -83,12 +107,10 @@ private:
     /** VR渲染线程实例，nullptr表示VR未运行 */
     VRRenderThread*                               vrThread;
 
-    /** 旋转动画当前状态，用于切换按钮文字 */
+    /** 旋转动画当前状态 */
     bool                                          isVRRotating;
 
-    /** ModelPart指针 → VR actorIndex 映射表
-     *  用于将GUI操作精确路由到对应的VR Actor
-     */
+    /** ModelPart指针 → VR actorIndex 映射表 */
     QMap<ModelPart*, int>                         actorIndexMap;
 };
 

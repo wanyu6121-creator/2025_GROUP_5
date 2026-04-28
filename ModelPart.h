@@ -43,6 +43,15 @@ public:
      */
     void appendChild(ModelPart* item);
 
+    /** 移除并删除指定行的子节点
+     *
+     * 从 m_childItems 中取出第 row 个子节点并 delete 之。
+     * 调用方负责事先通知 QAbstractItemModel（beginRemoveRows/endRemoveRows）。
+     *
+     * @param row 要移除的子节点行号（0-based）
+     */
+    void removeChild(int row);
+
     /** 获取指定行的子节点
      * @param row 行索引
      * @return 子节点指针，越界返回nullptr

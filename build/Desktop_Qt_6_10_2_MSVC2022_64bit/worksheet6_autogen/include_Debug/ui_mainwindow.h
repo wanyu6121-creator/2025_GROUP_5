@@ -21,6 +21,7 @@
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QMenuBar>
 #include <QtWidgets/QPushButton>
+#include <QtWidgets/QSlider>
 #include <QtWidgets/QSpacerItem>
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QToolBar>
@@ -36,6 +37,8 @@ class Ui_MainWindow
 public:
     QAction *actionOpen_File;
     QAction *actionItem_Options;
+    QAction *actionOpen_Directory;
+    QAction *actionDelete_Node;
     QWidget *centralwidget;
     QVBoxLayout *verticalLayout;
     QHBoxLayout *horizontalLayout;
@@ -55,7 +58,12 @@ public:
     QFrame *line2;
     QPushButton *pushButtonRotate;
     QPushButton *pushButtonResetView;
+    QPushButton *pushButtonDelete;
     QSpacerItem *horizontalSpacer;
+    QHBoxLayout *lightLayout;
+    QLabel *labelLight;
+    QSlider *sliderLightIntensity;
+    QLabel *labelLightValue;
     QMenuBar *menubar;
     QMenu *menuFile;
     QStatusBar *statusbar;
@@ -75,6 +83,12 @@ public:
         actionItem_Options = new QAction(MainWindow);
         actionItem_Options->setObjectName("actionItem_Options");
         actionItem_Options->setMenuRole(QAction::MenuRole::NoRole);
+        actionOpen_Directory = new QAction(MainWindow);
+        actionOpen_Directory->setObjectName("actionOpen_Directory");
+        actionOpen_Directory->setMenuRole(QAction::MenuRole::NoRole);
+        actionDelete_Node = new QAction(MainWindow);
+        actionDelete_Node->setObjectName("actionDelete_Node");
+        actionDelete_Node->setMenuRole(QAction::MenuRole::NoRole);
         centralwidget = new QWidget(MainWindow);
         centralwidget->setObjectName("centralwidget");
         verticalLayout = new QVBoxLayout(centralwidget);
@@ -176,12 +190,50 @@ public:
 
         buttonLayout->addWidget(pushButtonResetView);
 
+        pushButtonDelete = new QPushButton(centralwidget);
+        pushButtonDelete->setObjectName("pushButtonDelete");
+
+        buttonLayout->addWidget(pushButtonDelete);
+
         horizontalSpacer = new QSpacerItem(40, 20, QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Minimum);
 
         buttonLayout->addItem(horizontalSpacer);
 
 
         verticalLayout->addLayout(buttonLayout);
+
+        lightLayout = new QHBoxLayout();
+        lightLayout->setObjectName("lightLayout");
+        labelLight = new QLabel(centralwidget);
+        labelLight->setObjectName("labelLight");
+
+        lightLayout->addWidget(labelLight);
+
+        sliderLightIntensity = new QSlider(centralwidget);
+        sliderLightIntensity->setObjectName("sliderLightIntensity");
+        sliderLightIntensity->setMinimum(0);
+        sliderLightIntensity->setMaximum(100);
+        sliderLightIntensity->setValue(40);
+        sliderLightIntensity->setOrientation(Qt::Orientation::Horizontal);
+        sliderLightIntensity->setTickPosition(QSlider::TickPosition::TicksBelow);
+        sliderLightIntensity->setTickInterval(10);
+        QSizePolicy sizePolicy2(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Fixed);
+        sizePolicy2.setHorizontalStretch(0);
+        sizePolicy2.setVerticalStretch(0);
+        sizePolicy2.setHeightForWidth(sliderLightIntensity->sizePolicy().hasHeightForWidth());
+        sliderLightIntensity->setSizePolicy(sizePolicy2);
+
+        lightLayout->addWidget(sliderLightIntensity);
+
+        labelLightValue = new QLabel(centralwidget);
+        labelLightValue->setObjectName("labelLightValue");
+        labelLightValue->setMinimumSize(QSize(35, 0));
+        labelLightValue->setAlignment(Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter);
+
+        lightLayout->addWidget(labelLightValue);
+
+
+        verticalLayout->addLayout(lightLayout);
 
         MainWindow->setCentralWidget(centralwidget);
         menubar = new QMenuBar(MainWindow);
@@ -199,6 +251,7 @@ public:
 
         menubar->addAction(menuFile->menuAction());
         menuFile->addAction(actionOpen_File);
+        menuFile->addAction(actionOpen_Directory);
         toolBar->addAction(actionOpen_File);
 
         retranslateUi(MainWindow);
@@ -214,6 +267,20 @@ public:
 #if QT_CONFIG(tooltip)
         actionItem_Options->setToolTip(QCoreApplication::translate("MainWindow", "Item Options", nullptr));
 #endif // QT_CONFIG(tooltip)
+        actionOpen_Directory->setText(QCoreApplication::translate("MainWindow", "Open Directory...", nullptr));
+#if QT_CONFIG(tooltip)
+        actionOpen_Directory->setToolTip(QCoreApplication::translate("MainWindow", "Load all STL files from a directory (recursive)", nullptr));
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(shortcut)
+        actionOpen_Directory->setShortcut(QCoreApplication::translate("MainWindow", "Ctrl+Shift+O", nullptr));
+#endif // QT_CONFIG(shortcut)
+        actionDelete_Node->setText(QCoreApplication::translate("MainWindow", "Delete", nullptr));
+#if QT_CONFIG(tooltip)
+        actionDelete_Node->setToolTip(QCoreApplication::translate("MainWindow", "Delete selected node and remove from VR scene", nullptr));
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(shortcut)
+        actionDelete_Node->setShortcut(QCoreApplication::translate("MainWindow", "Del", nullptr));
+#endif // QT_CONFIG(shortcut)
         labelFilters->setText(QCoreApplication::translate("MainWindow", "Filters:", nullptr));
         checkBoxClip->setText(QCoreApplication::translate("MainWindow", "Clip", nullptr));
         checkBoxShrink->setText(QCoreApplication::translate("MainWindow", "Shrink", nullptr));
@@ -235,6 +302,18 @@ public:
 #if QT_CONFIG(tooltip)
         pushButtonResetView->setToolTip(QCoreApplication::translate("MainWindow", "Reset VR camera to initial position", nullptr));
 #endif // QT_CONFIG(tooltip)
+        pushButtonDelete->setText(QCoreApplication::translate("MainWindow", "Delete Node", nullptr));
+#if QT_CONFIG(tooltip)
+        pushButtonDelete->setToolTip(QCoreApplication::translate("MainWindow", "Delete selected node and remove from VR scene", nullptr));
+#endif // QT_CONFIG(tooltip)
+        labelLight->setText(QCoreApplication::translate("MainWindow", "Light:", nullptr));
+#if QT_CONFIG(tooltip)
+        labelLight->setToolTip(QCoreApplication::translate("MainWindow", "Adjust main light intensity in VR scene", nullptr));
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(tooltip)
+        sliderLightIntensity->setToolTip(QCoreApplication::translate("MainWindow", "Drag to change VR light intensity in real time", nullptr));
+#endif // QT_CONFIG(tooltip)
+        labelLightValue->setText(QCoreApplication::translate("MainWindow", "80%", nullptr));
         menuFile->setTitle(QCoreApplication::translate("MainWindow", "File", nullptr));
         toolBar->setWindowTitle(QCoreApplication::translate("MainWindow", "toolBar", nullptr));
     } // retranslateUi

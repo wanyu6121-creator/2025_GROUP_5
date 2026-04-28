@@ -36,6 +36,16 @@ void ModelPart::appendChild(ModelPart* item)
     m_childItems.append(item);
 }
 
+void ModelPart::removeChild(int row)
+{
+    /* 边界检查 */
+    if (row < 0 || row >= m_childItems.size()) return;
+
+    /* 取出并释放（子节点析构时会级联删除其子节点）*/
+    ModelPart* child = m_childItems.takeAt(row);
+    delete child;
+}
+
 ModelPart* ModelPart::child(int row)
 {
     if (row < 0 || row >= m_childItems.size())

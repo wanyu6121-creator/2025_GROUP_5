@@ -95,6 +95,16 @@ public:
       */
     QModelIndex appendChild( QModelIndex& parent, const QList<QVariant>& data );
 
+    /** Remove the item at the given index from the tree and delete it.
+     *
+     *  Calls beginRemoveRows / endRemoveRows internally so the TreeView
+     *  updates correctly. Also calls ModelPart::removeChild() to free memory.
+     *
+     *  @param index QModelIndex of the item to remove (must be valid)
+     *  @return true on success, false if index was invalid
+     */
+    bool removeItem( const QModelIndex& index );
+
 
 private:
     ModelPart *rootItem;    /**< This is a pointer to the item at the base of the tree */

@@ -144,3 +144,29 @@ QModelIndex ModelPartList::appendChild(QModelIndex& parent, const QList<QVariant
     return child;
 }
 
+
+bool ModelPartList::removeItem( const QModelIndex& index )
+{
+    if ( !index.isValid() )
+        return false;
+
+    ModelPart* item       = static_cast<ModelPart*>( index.internalPointer() );
+    ModelPart* parentItem = item->parentItem();
+
+    /* Refuse to delete the invisible root item */
+    if ( parentItem == nullptr )
+        return false;
+
+    QModelIndex parentIndex = parent( index );   /* QAbstractItemModel::parent() */
+    int row = item->row();
+
+    /* Notify the view that rows are about to be removed */
+    beginRemoveRows( parentIndex, row, row );
+
+    /* Delete the node (ModelPart destructor recursively frees children) */
+    parentItem->removeChild( row );
+
+    endRemoveRows();
+
+    return true;
+}
