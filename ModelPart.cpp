@@ -13,6 +13,8 @@
 #include <vtkDataSetMapper.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkProperty.h>
+#include <vtkBoundingBox.h>
+#include <array>
 
 ModelPart::ModelPart(const QList<QVariant>& data, ModelPart* parent)
     : m_itemData(data), m_parentItem(parent)
@@ -119,8 +121,59 @@ void ModelPart::loadSTL(QString fileName)
     file->Update();
 
     /* ----------------------------------------------------------------
-     * 创建裁剪滤镜
-     * 在x=0处沿x轴法线方向裁剪，法线朝-x使正x侧保留
+     * 【多截面切片滤镜】赛车截面可视化
+     *
+     * 原理：
+     *   1. 读取模型包围盒，沿 Y 轴（赛车高度方向）等间距放置 NUM_SLICES 个切面
+     *   2. 每个 vtkCutter 沿对应平面切出多边形轮廓线（polyline）
+     *   3. vtkAppendPolyData 把所有截面合并为一个数据集
+     *   4. vtkTubeFilter 把细线加粗为管状，截面轮廓清晰可见
+     *
+     * 效果：激活 Clip 复选框后，模型变为类似工程图纸的多层剖面图
+     * ---------------------------------------------------------------- */
+
+    /* 取模型 Y 轴范围（赛车高度方向），在其间均匀分布截面 */
+    double bounds[6];
+    file->GetOutput()->GetBounds(bounds);
+    double yMin = bounds[2];
+    double yMax = bounds[3];
+    double yRange = yMax - yMin;
+
+    /* 避免空包围盒（模型未加载时 bounds 全为 0）*/
+    if (yRange < 1e-6) yRange = 1.0;
+
+    sliceAppend = vtkSmartPointer<vtkAppendPolyData>::New();
+
+    for (int i = 0; i < NUM_SLICES; ++i) {
+        /* 截面集中在模型中间 40% 高度范围内（30%~70%），间距更紧密 */
+        double t    = (double)i / (double)(NUM_SLICES - 1);
+        double yPos = yMin + yRange * (0.30 + t * 0.40);
+
+        /* 切面：法线朝 Y 轴，位于 yPos */
+        cutPlanes[i] = vtkSmartPointer<vtkPlane>::New();
+        cutPlanes[i]->SetOrigin(0.0, yPos, 0.0);
+        cutPlanes[i]->SetNormal(0.0, 1.0, 0.0);
+
+        cutters[i] = vtkSmartPointer<vtkCutter>::New();
+        cutters[i]->SetCutFunction(cutPlanes[i]);
+        cutters[i]->SetInputConnection(file->GetOutputPort());
+
+        sliceAppend->AddInputConnection(cutters[i]->GetOutputPort());
+    }
+
+    /* 把截面轮廓线加粗为管状，半径 = 模型尺寸的 0.3% */
+    double tubeRadius = (bounds[1] - bounds[0] + yRange +
+                         bounds[5] - bounds[4]) / 3.0 * 0.003;
+    tubeRadius = std::max(tubeRadius, 0.5);   /* 最小 0.5 个单位 */
+
+    sliceTube = vtkSmartPointer<vtkTubeFilter>::New();
+    sliceTube->SetInputConnection(sliceAppend->GetOutputPort());
+    sliceTube->SetRadius(tubeRadius);
+    sliceTube->SetNumberOfSides(8);
+    sliceTube->CappingOn();
+
+    /* ----------------------------------------------------------------
+     * 保留原 clipFilter 供 shrink 组合使用（无截面时退回简单clip）
      * ---------------------------------------------------------------- */
     vtkSmartPointer<vtkPlane> clipPlane = vtkSmartPointer<vtkPlane>::New();
     clipPlane->SetOrigin(0.0, 0.0, 0.0);
@@ -130,32 +183,18 @@ void ModelPart::loadSTL(QString fileName)
     clipFilter->SetClipFunction(clipPlane.Get());
     clipFilter->SetInputConnection(file->GetOutputPort());
 
-    /* ----------------------------------------------------------------
-     * 创建收缩滤镜，收缩因子0.8
-     * ---------------------------------------------------------------- */
+    /* 收缩滤镜 */
     shrinkFilter = vtkSmartPointer<vtkShrinkFilter>::New();
     shrinkFilter->SetShrinkFactor(0.8);
 
-    /* ----------------------------------------------------------------
-     * 【修复问题3】使用 vtkDataSetMapper 替代 vtkPolyDataMapper
-     *
-     * 原因：vtkClipDataSet 输出的是 vtkUnstructuredGrid 类型，
-     * 而 vtkPolyDataMapper 只能处理 vtkPolyData 类型，
-     * 两者不兼容导致模型消失。
-     * vtkDataSetMapper 可以处理所有VTK数据类型，包括：
-     *   - vtkPolyData（无滤镜时STLReader直接输出）
-     *   - vtkUnstructuredGrid（ClipFilter输出）
-     *   - ShrinkFilter的输出
-     * ---------------------------------------------------------------- */
+    /* Mapper 和 Actor */
     mapper = vtkSmartPointer<vtkDataSetMapper>::New();
     actor  = vtkSmartPointer<vtkActor>::New();
     actor->SetMapper(mapper);
 
-    /* 应用初始颜色和可见性 */
     actor->GetProperty()->SetColor(colour[0] / 255.0, colour[1] / 255.0, colour[2] / 255.0);
     actor->SetVisibility(isVisible ? 1 : 0);
 
-    /* 根据当前滤镜状态连接pipeline */
     updatePipeline();
 }
 
@@ -164,26 +203,34 @@ void ModelPart::updatePipeline()
     if (!file || !mapper) return;
 
     if (isClipped && isShrunk) {
-        /* 两个滤镜都激活：reader → clip → shrink → mapper
-         * ClipFilter输出UnstructuredGrid，ShrinkFilter接受任意DataSet，
-         * DataSetMapper最终处理ShrinkFilter的输出，类型兼容 */
-        clipFilter->SetInputConnection(file->GetOutputPort());
-        shrinkFilter->SetInputConnection(clipFilter->GetOutputPort());
+        /* 截面切片 + 收缩：
+         * sliceTube 输出 PolyData，ShrinkFilter 接收后收缩，DataSetMapper 渲染
+         * 截面轮廓 + 收缩产生分段感，视觉上接近爆炸图效果 */
+        shrinkFilter->SetInputConnection(sliceTube->GetOutputPort());
         mapper->SetInputConnection(shrinkFilter->GetOutputPort());
 
+        /* 截面模式下调整线宽让轮廓更清晰 */
+        actor->GetProperty()->SetLineWidth(2.0);
+
     } else if (isClipped && !isShrunk) {
-        /* 仅裁剪：reader → clip → mapper */
-        clipFilter->SetInputConnection(file->GetOutputPort());
-        mapper->SetInputConnection(clipFilter->GetOutputPort());
+        /* 纯截面切片：reader → cutters → append → tube → mapper
+         * 显示 NUM_SLICES 个等间距截面轮廓，类似工程图纸剖视图 */
+        mapper->SetInputConnection(sliceTube->GetOutputPort());
+
+        actor->GetProperty()->SetLineWidth(2.0);
 
     } else if (!isClipped && isShrunk) {
         /* 仅收缩：reader → shrink → mapper */
         shrinkFilter->SetInputConnection(file->GetOutputPort());
         mapper->SetInputConnection(shrinkFilter->GetOutputPort());
 
+        actor->GetProperty()->SetLineWidth(1.0);
+
     } else {
         /* 无滤镜：reader → mapper */
         mapper->SetInputConnection(file->GetOutputPort());
+
+        actor->GetProperty()->SetLineWidth(1.0);
     }
 }
 
@@ -211,49 +258,70 @@ vtkActor* ModelPart::getNewActor()
     }
 
     /* ----------------------------------------------------------------
-     * 为VR创建独立pipeline
-     * 同样使用vtkDataSetMapper保证类型兼容
+     * 为VR创建独立的多截面切片 pipeline
+     * 与 GUI 侧逻辑完全一致，但所有对象独立创建，不共享指针
      * ---------------------------------------------------------------- */
-    vtkSmartPointer<vtkPlane> vrClipPlane = vtkSmartPointer<vtkPlane>::New();
-    vrClipPlane->SetOrigin(0.0, 0.0, 0.0);
-    vrClipPlane->SetNormal(-1.0, 0.0, 0.0);
 
-    vtkSmartPointer<vtkClipDataSet> vrClipFilter = vtkSmartPointer<vtkClipDataSet>::New();
-    vrClipFilter->SetClipFunction(vrClipPlane.Get());
-    vrClipFilter->SetInputConnection(file->GetOutputPort());
+    /* 取包围盒 Y 范围 */
+    double bounds[6];
+    file->GetOutput()->GetBounds(bounds);
+    double yMin   = bounds[2];
+    double yMax   = bounds[3];
+    double yRange = yMax - yMin;
+    if (yRange < 1e-6) yRange = 1.0;
 
-    vtkSmartPointer<vtkShrinkFilter> vrShrinkFilter = vtkSmartPointer<vtkShrinkFilter>::New();
-    vrShrinkFilter->SetShrinkFactor(0.8);
+    /* 构建截面 pipeline */
+    vtkSmartPointer<vtkAppendPolyData> vrAppend = vtkSmartPointer<vtkAppendPolyData>::New();
+    for (int i = 0; i < NUM_SLICES; ++i) {
+        double t    = (double)i / (double)(NUM_SLICES - 1);
+        double yPos = yMin + yRange * (0.30 + t * 0.40);
 
-    /* VR侧同样用DataSetMapper */
+        vtkSmartPointer<vtkPlane> plane = vtkSmartPointer<vtkPlane>::New();
+        plane->SetOrigin(0.0, yPos, 0.0);
+        plane->SetNormal(0.0, 1.0, 0.0);
+
+        vtkSmartPointer<vtkCutter> cutter = vtkSmartPointer<vtkCutter>::New();
+        cutter->SetCutFunction(plane);
+        cutter->SetInputConnection(file->GetOutputPort());
+
+        vrAppend->AddInputConnection(cutter->GetOutputPort());
+    }
+
+    double tubeRadius = (bounds[1] - bounds[0] + yRange +
+                         bounds[5] - bounds[4]) / 3.0 * 0.003;
+    tubeRadius = std::max(tubeRadius, 0.5);
+
+    vtkSmartPointer<vtkTubeFilter> vrTube = vtkSmartPointer<vtkTubeFilter>::New();
+    vrTube->SetInputConnection(vrAppend->GetOutputPort());
+    vrTube->SetRadius(tubeRadius);
+    vrTube->SetNumberOfSides(8);
+    vrTube->CappingOn();
+
+    /* 收缩滤镜（VR独立实例）*/
+    vtkSmartPointer<vtkShrinkFilter> vrShrink = vtkSmartPointer<vtkShrinkFilter>::New();
+    vrShrink->SetShrinkFactor(0.8);
+
     vtkSmartPointer<vtkDataSetMapper> newMapper = vtkSmartPointer<vtkDataSetMapper>::New();
 
-    /* 根据当前滤镜状态连接VR pipeline */
     if (isClipped && isShrunk) {
-        vrClipFilter->SetInputConnection(file->GetOutputPort());
-        vrShrinkFilter->SetInputConnection(vrClipFilter->GetOutputPort());
-        newMapper->SetInputConnection(vrShrinkFilter->GetOutputPort());
-
+        vrShrink->SetInputConnection(vrTube->GetOutputPort());
+        newMapper->SetInputConnection(vrShrink->GetOutputPort());
     } else if (isClipped && !isShrunk) {
-        vrClipFilter->SetInputConnection(file->GetOutputPort());
-        newMapper->SetInputConnection(vrClipFilter->GetOutputPort());
-
+        newMapper->SetInputConnection(vrTube->GetOutputPort());
     } else if (!isClipped && isShrunk) {
-        vrShrinkFilter->SetInputConnection(file->GetOutputPort());
-        newMapper->SetInputConnection(vrShrinkFilter->GetOutputPort());
-
+        vrShrink->SetInputConnection(file->GetOutputPort());
+        newMapper->SetInputConnection(vrShrink->GetOutputPort());
     } else {
         newMapper->SetInputConnection(file->GetOutputPort());
     }
 
     vtkActor* newActor = vtkActor::New();
     newActor->SetMapper(newMapper);
-
-    /* 共享属性：颜色自动同步 */
-    newActor->SetProperty(actor->GetProperty());
-
-    /* 可见性不在Property中，需手动同步 */
+    newActor->SetProperty(actor->GetProperty());   /* 共享颜色属性 */
     newActor->SetVisibility(isVisible ? 1 : 0);
+    if (isClipped) {
+        newActor->GetProperty()->SetLineWidth(2.0);
+    }
 
     return newActor;
 }

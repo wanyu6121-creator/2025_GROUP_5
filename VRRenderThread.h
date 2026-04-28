@@ -31,6 +31,8 @@
 #include <vtkClipDataSet.h>
 #include <vtkShrinkFilter.h>
 #include <vtkPlane.h>
+#include <vtkPropPicker.h>
+#include <vtkCellPicker.h>
 
 #include <vtkOpenVRRenderer.h>
 #include <vtkOpenVRRenderWindow.h>
@@ -47,17 +49,24 @@
  * actorIndex = -1 表示全局操作。
  */
 enum VRCommand {
-    CMD_SET_COLOUR_R       = 1,  /**< 红色分量（共享Property自动同步，保留备用）*/
-    CMD_SET_COLOUR_G       = 2,  /**< 绿色分量 */
-    CMD_SET_COLOUR_B       = 3,  /**< 蓝色分量 */
-    CMD_SET_VISIBLE        = 4,  /**< 可见性 (value>0.5=可见), actorIndex指定目标 */
-    CMD_START_ROTATE       = 5,  /**< 开始旋转动画 */
-    CMD_STOP_ROTATE        = 6,  /**< 停止旋转动画 */
-    CMD_RESET_VIEW         = 7,  /**< 重置相机视角 */
-    CMD_APPLY_FILTER       = 8,  /**< 过滤器同步: value=(filterType*10+enabled) */
-    CMD_ADD_ACTOR          = 9,  /**< 动态添加Actor（加分项）*/
-    CMD_REMOVE_ACTOR       = 10, /**< 动态移除Actor（加分项），actorIndex指定目标 */
-    CMD_SET_LIGHT_INTENSITY= 11, /**< 【创意】主光源强度: value=0.0~2.0 */
+    CMD_SET_COLOUR_R       = 1,
+    CMD_SET_COLOUR_G       = 2,
+    CMD_SET_COLOUR_B       = 3,
+    CMD_SET_VISIBLE        = 4,
+    CMD_START_ROTATE       = 5,
+    CMD_STOP_ROTATE        = 6,
+    CMD_RESET_VIEW         = 7,
+    CMD_APPLY_FILTER       = 8,
+    CMD_ADD_ACTOR          = 9,
+    CMD_REMOVE_ACTOR       = 10,
+    CMD_SET_LIGHT_INTENSITY= 11,
+    /* 【B方案】VR内手柄/鼠标射线拾取属性修改 */
+    CMD_VR_SELECT_ACTOR    = 12, /**< 选中 actor（高亮显示）*/
+    CMD_VR_DESELECT        = 13, /**< 取消选中 */
+    CMD_VR_TOGGLE_VISIBLE  = 14, /**< 切换选中 actor 可见性 */
+    CMD_VR_TOGGLE_SLICE    = 15, /**< 切换选中 actor 截面滤镜 */
+    CMD_VR_TOGGLE_SHRINK   = 16, /**< 切换选中 actor 收缩滤镜 */
+    CMD_VR_SET_COLOUR      = 17, /**< 循环切换选中 actor 颜色 */
 };
 
 /**
@@ -124,13 +133,23 @@ public:
     ~VRRenderThread() override;
 
     /**
+     * @brief 【B方案】为 actor 注册名称（用于选中时显示）
+     * @param index actor索引
+     * @param name  零件名称
+     */
+    void setActorName(int index, const QString& name);
+
+Q_SIGNALS:
+    /**
+     * @brief 【B方案】VR内选中/取消选中零件时发出，通知GUI更新状态栏
+     * @param actorIndex 被选中的索引，-1 = 取消选中
+     * @param partName   零件名称
+     */
+    void vrActorSelected(int actorIndex, const QString& partName);
+
+public:
+    /**
      * @brief 在线程启动前批量添加Actor（仅在start()之前调用）
-     *
-     * @param actor    通过ModelPart::getNewActor()获得的独立Actor
-     * @param reader   该零件的STLReader指针（用于过滤器pipeline重建）
-     * @param clipOn   初始裁剪状态
-     * @param shrinkOn 初始收缩状态
-     * @return 该Actor在actorList中的索引（用于后续命令的actorIndex参数）
      */
     int addActorOffline(vtkActor* actor,
                         vtkSTLReader* reader = nullptr,
@@ -256,13 +275,29 @@ private:
     void setupFloorDesktop(vtkRenderer* renderer);
 
     /* ---- Actor列表及对应pipeline组件（按索引一一对应）---- */
-    QList<vtkActor*>                          actorList;      /**< 模型Actor裸指针 */
-    QList<vtkSmartPointer<vtkSTLReader>>      readerList;     /**< 各Actor的STL读取器 */
-    QList<vtkSmartPointer<vtkDataSetMapper>>  mapperList;     /**< 各Actor的Mapper（未使用，备用）*/
-    QList<vtkSmartPointer<vtkClipDataSet>>    clipFilters;    /**< 各Actor的裁剪滤镜 */
-    QList<vtkSmartPointer<vtkShrinkFilter>>   shrinkFilters;  /**< 各Actor的收缩滤镜 */
-    QList<bool>                               clipState;      /**< 各Actor的裁剪状态 */
-    QList<bool>                               shrinkState;    /**< 各Actor的收缩状态 */
+    QList<vtkActor*>                          actorList;
+    QList<vtkSmartPointer<vtkSTLReader>>      readerList;
+    QList<vtkSmartPointer<vtkDataSetMapper>>  mapperList;
+    QList<vtkSmartPointer<vtkClipDataSet>>    clipFilters;
+    QList<vtkSmartPointer<vtkShrinkFilter>>   shrinkFilters;
+    QList<bool>                               clipState;
+    QList<bool>                               shrinkState;
+
+    /* ---- 【B方案】VR内选中状态 ---- */
+    int              selectedActorIndex;  /**< 当前选中的 actor 索引，-1=无 */
+    QList<QString>   actorNames;          /**< 各 actor 对应零件名称 */
+    double           savedColor[3];       /**< 选中前的原始颜色（用于取消高亮恢复）*/
+
+    /* 颜色循环表（CMD_VR_SET_COLOUR 依次切换）*/
+    static const int  COLOR_COUNT = 6;
+    static const int  colorTable[COLOR_COUNT][3]; /**< RGB 0-255 */
+    QList<int>        actorColorIdx;       /**< 各 actor 当前在 colorTable 的索引 */
+
+    /** 对指定 actor 应用/取消选中高亮（亮黄色外框）*/
+    void highlightActor(int idx, bool on);
+
+    /** 鼠标点击坐标 → actor 索引，-1 = 未命中 */
+    int pickActorAt(int x, int y, vtkRenderer* renderer);
 
     /* ---- 动态添加队列（线程安全）---- */
     QMutex                  pendingMutex;    /**< 保护pendingActors的互斥锁 */

@@ -104,8 +104,16 @@ MainWindow::MainWindow(QWidget* parent)
     connect(ui->pushButton_2, &QPushButton::released,
             this, &MainWindow::handleOptionsButton);
     ui->treeView->addAction(ui->actionItem_Options);
-    connect(this, &MainWindow::statusUpdateMessage,
-            ui->statusbar, &QStatusBar::showMessage);
+    /* ---- 【B方案】VR内选中零件通知 ---- */
+    connect(vrThread, &VRRenderThread::vrActorSelected,
+            this, [this](int idx, const QString& name) {
+        if (idx >= 0)
+            emit statusUpdateMessage(
+                QString("VR Selected: %1  |  Keys: V=Visible  S=Slice  K=Shrink  C=Color")
+                .arg(name), 0);
+        else
+            emit statusUpdateMessage("VR: No part selected", 2000);
+    });
     connect(ui->treeView, &QTreeView::clicked,
             this, &MainWindow::handleTreeClicked);
 
@@ -427,6 +435,8 @@ void MainWindow::populateVRActorsFromTree(const QModelIndex& index)
             part->getShrink()
         );
         actorIndexMap.insert(part, idx);
+        /* 【B方案】注册零件名称，VR内选中时显示 */
+        vrThread->setActorName(idx, part->data(0).toString());
     }
 
     if (partList->hasChildren(index)) {
@@ -488,7 +498,7 @@ void MainWindow::on_actionOpen_File_triggered()
     ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
     int loadedCount = 0;
 
-    for (const QString& fileName : fileNames) {
+    for (const QString& fileName : qAsConst(fileNames)) {
         QFileInfo fileInfo(fileName);
         QString   onlyFileName = fileInfo.fileName();
 
@@ -574,80 +584,66 @@ void MainWindow::on_actionItem_Options_triggered()
 
 /* ================================================================
  * 过滤器切换（GUI侧 + 同步到VR）
+ * 递归作用于选中节点及其所有子节点
  * ================================================================ */
+
+/* 辅助：递归对一棵子树的所有节点应用 clip 状态 */
+static void applyClipRecursive(ModelPart* part, bool enabled)
+{
+    if (!part) return;
+    part->setClip(enabled);
+    for (int i = 0; i < part->childCount(); ++i)
+        applyClipRecursive(part->child(i), enabled);
+}
+
+/* 辅助：递归对一棵子树的所有节点应用 shrink 状态 */
+static void applyShrinkRecursive(ModelPart* part, bool enabled)
+{
+    if (!part) return;
+    part->setShrink(enabled);
+    for (int i = 0; i < part->childCount(); ++i)
+        applyShrinkRecursive(part->child(i), enabled);
+}
 
 void MainWindow::handleClipToggle(bool checked)
 {
-    QModelIndex index = ui->treeView->currentIndex();
-
-    if (!index.isValid()) {
-        ui->checkBoxClip->blockSignals(true);
-        ui->checkBoxClip->setChecked(false);
-        ui->checkBoxClip->blockSignals(false);
-        emit statusUpdateMessage("No item selected — select a part first", 2000);
-        return;
-    }
-
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-    selectedPart->setClip(checked);
+    /* 全局应用：从 rootItem 递归所有零件，无需选中节点 */
+    applyClipRecursive(partList->getRootItem(), checked);
     updateRender();
+    renderWindow->Render();
 
-    /* 同步到VR：value = filterType*10 + (enabled?1:0) */
     if (vrThread != nullptr && vrThread->isRunning()) {
-        int idx = getActorIndex(selectedPart);
         double value = FILTER_CLIP * 10.0 + (checked ? 1.0 : 0.0);
-        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        for (int idx : actorIndexMap.values())
+            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
     }
 
     emit statusUpdateMessage(
-        checked ? QString("Clip filter applied to: ") + selectedPart->data(0).toString()
-                : QString("Clip filter removed from: ") + selectedPart->data(0).toString(),
-        2000);
+        checked ? "Slice filter applied to all parts"
+                : "Slice filter removed from all parts", 2000);
 }
 
 void MainWindow::handleShrinkToggle(bool checked)
 {
-    QModelIndex index = ui->treeView->currentIndex();
-
-    if (!index.isValid()) {
-        ui->checkBoxShrink->blockSignals(true);
-        ui->checkBoxShrink->setChecked(false);
-        ui->checkBoxShrink->blockSignals(false);
-        emit statusUpdateMessage("No item selected — select a part first", 2000);
-        return;
-    }
-
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-    selectedPart->setShrink(checked);
+    /* 全局应用：从 rootItem 递归所有零件，无需选中节点 */
+    applyShrinkRecursive(partList->getRootItem(), checked);
     updateRender();
+    renderWindow->Render();
 
     if (vrThread != nullptr && vrThread->isRunning()) {
-        int idx = getActorIndex(selectedPart);
         double value = FILTER_SHRINK * 10.0 + (checked ? 1.0 : 0.0);
-        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        for (int idx : actorIndexMap.values())
+            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
     }
 
     emit statusUpdateMessage(
-        checked ? QString("Shrink filter applied to: ") + selectedPart->data(0).toString()
-                : QString("Shrink filter removed from: ") + selectedPart->data(0).toString(),
-        2000);
+        checked ? "Shrink filter applied to all parts"
+                : "Shrink filter removed from all parts", 2000);
 }
 
 /* ================================================================
  * 渲染树遍历
  * ================================================================ */
-
-void MainWindow::updateRender()
-{
-    renderer->RemoveAllViewProps();
-
-    int topLevelRows = partList->rowCount(QModelIndex());
-    for (int i = 0; i < topLevelRows; i++) {
-        updateRenderFromTree(partList->index(i, 0, QModelIndex()));
-    }
-
-    renderer->Render();
-}
 
 /* ================================================================
  * 【加分功能A-1】批量目录加载
@@ -769,23 +765,32 @@ void MainWindow::on_actionOpen_Directory_triggered()
     }
 }
 
+/* ================================================================
+ * 渲染树遍历
+ * 直接通过 ModelPart 指针递归，不依赖 QModelIndex，
+ * 避免 layoutChanged 后索引失效导致部分 Actor 漏加。
+ * ================================================================ */
+
+static void addActorsFromPart(ModelPart* part, vtkRenderer* renderer)
+{
+    if (!part) return;
+    vtkSmartPointer<vtkActor> actor = part->getActor();
+    if (actor) renderer->AddActor(actor);
+    for (int i = 0; i < part->childCount(); ++i)
+        addActorsFromPart(part->child(i), renderer);
+}
+
+void MainWindow::updateRender()
+{
+    renderer->RemoveAllViewProps();
+    addActorsFromPart(partList->getRootItem(), renderer);
+    renderer->Render();
+}
+
 void MainWindow::updateRenderFromTree(const QModelIndex& index)
 {
-    if (index.isValid()) {
-        ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-        vtkSmartPointer<vtkActor> partActor = selectedPart->getActor();
-        if (partActor != nullptr) {
-            renderer->AddActor(partActor);
-        }
-    }
-
-    if (!partList->hasChildren(index) || (index.flags() & Qt::ItemNeverHasChildren)) {
-        return;
-    }
-
-    int rows = partList->rowCount(index);
-    for (int i = 0; i < rows; i++) {
-        updateRenderFromTree(partList->index(i, 0, index));
-    }
+    if (!index.isValid()) return;
+    ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+    addActorsFromPart(part, renderer);
 }
 

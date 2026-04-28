@@ -51,7 +51,8 @@
       </item>
       <item>
        <widget class="QCheckBox" name="checkBoxClip">
-        <property name="text"><string>Clip</string></property>
+        <property name="text"><string>Slice</string></property>
+        <property name="toolTip"><string>Cut model into 6 horizontal cross-sections along Y axis</string></property>
        </widget>
       </item>
       <item>
