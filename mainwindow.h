@@ -51,6 +51,9 @@ public slots:
      */
     void handleShrinkToggle(bool checked);
 
+    /** 创意截面视图切换（加分功能）*/
+    void handleSliceToggle(bool checked);
+
     /* ---- VR控制槽函数 ---- */
     /** 启动VR渲染线程（自动遍历树并注册所有Actor）*/
     void handleStartVR();

@@ -150,6 +150,10 @@ public:
     /** @return 收缩滤镜是否当前激活 */
     bool getShrink() { return isShrunk; }
 
+    /** 创意加分：截面视图控制（与 Clip/Shrink 独立）*/
+    void setSlice(bool enabled) { isSliced = enabled; updatePipeline(); }
+    bool getSlice()             { return isSliced; }
+
 private:
     /** 根据当前滤镜状态重新连接GUI侧VTK pipeline
      *  路由：STLReader → [ClipFilter] → [ShrinkFilter] → Mapper
@@ -186,8 +190,9 @@ private:
     vtkSmartPointer<vtkClipDataSet>      clipFilter;     /**< 保留原clip（shrink组合用）*/
     vtkSmartPointer<vtkShrinkFilter>     shrinkFilter;   /**< 收缩滤镜 */
 
-    bool isClipped = false;  /**< 裁剪滤镜是否激活 */
-    bool isShrunk  = false;  /**< 收缩滤镜是否激活 */
+    bool isClipped = false;  /**< Clip 滤镜（vtkClipDataSet）是否激活 */
+    bool isShrunk  = false;  /**< Shrink 滤镜是否激活 */
+    bool isSliced  = false;  /**< 创意：多截面视图是否激活 */
 };
 
 #endif // VIEWER_MODELPART_H
