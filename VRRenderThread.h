@@ -287,6 +287,7 @@ private:
     int              selectedActorIndex;  /**< 当前选中的 actor 索引，-1=无 */
     QList<QString>   actorNames;          /**< 各 actor 对应零件名称 */
     double           savedColor[3];       /**< 选中前的原始颜色（用于取消高亮恢复）*/
+    double           rotationAngle;       /**< 旋转动画累计角度（度）*/
 
     /* 颜色循环表（CMD_VR_SET_COLOUR 依次切换）*/
     static const int  COLOR_COUNT = 6;

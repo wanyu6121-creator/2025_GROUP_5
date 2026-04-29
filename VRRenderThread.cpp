@@ -56,6 +56,7 @@ VRRenderThread::VRRenderThread(QObject* parent)
     , isRotating(false)
     , mainLightIntensity(0.8)
     , selectedActorIndex(-1)
+    , rotationAngle(0.0)
 {
     savedColor[0] = savedColor[1] = savedColor[2] = 1.0;
 }
@@ -262,12 +263,14 @@ void VRRenderThread::runVRMode()
         /* 3. 处理动态添加的Actor */
         processPendingActorsVR(renderer.Get());
 
-        /* 4. 旋转动画：每帧让所有模型Actor绕世界Y轴旋转0.5度 */
+        /* 4. 旋转动画：模型绕 Y 轴旋转（跳过地板 Actor）*/
         if (isRotating) {
-            vtkActorCollection* actors = renderer->GetActors();
-            actors->InitTraversal();
-            while (vtkActor* a = actors->GetNextActor()) {
-                a->RotateY(0.5);
+            rotationAngle += 0.5;
+            if (rotationAngle >= 360.0) rotationAngle -= 360.0;
+            for (int i = 0; i < actorList.size(); ++i) {
+                if (actorList[i]) {
+                    actorList[i]->SetOrientation(0, rotationAngle, 0);
+                }
             }
         }
 
@@ -356,10 +359,12 @@ void VRRenderThread::runDesktopMode()
         processPendingActorsDesktop(renderer.Get());
 
         if (isRotating) {
-            vtkActorCollection* actors = renderer->GetActors();
-            actors->InitTraversal();
-            while (vtkActor* a = actors->GetNextActor()) {
-                a->RotateY(0.5);
+            rotationAngle += 0.5;
+            if (rotationAngle >= 360.0) rotationAngle -= 360.0;
+            for (int i = 0; i < actorList.size(); ++i) {
+                if (actorList[i]) {
+                    actorList[i]->SetOrientation(0, rotationAngle, 0);
+                }
             }
         }
 
@@ -595,6 +600,9 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
 
     case CMD_RESET_VIEW:
         isRotating = false;
+        rotationAngle = 0.0;
+        for (int i = 0; i < actorList.size(); ++i)
+            if (actorList[i]) actorList[i]->SetOrientation(0, 0, 0);
         if (renderer) {
             renderer->ResetCamera();
             renderer->GetActiveCamera()->Azimuth(30);
@@ -728,6 +736,9 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
 
     case CMD_RESET_VIEW:
         isRotating = false;
+        rotationAngle = 0.0;
+        for (int i = 0; i < actorList.size(); ++i)
+            if (actorList[i]) actorList[i]->SetOrientation(0, 0, 0);
         if (renderer) {
             renderer->ResetCamera();
             renderer->GetActiveCamera()->Azimuth(30);
