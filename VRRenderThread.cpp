@@ -262,10 +262,13 @@ void VRRenderThread::runVRMode()
         /* 3. 处理动态添加的Actor */
         processPendingActorsVR(renderer.Get());
 
-        /* 4. 旋转动画：每帧偏转0.5度 */
+        /* 4. 旋转动画：每帧让所有模型Actor绕世界Y轴旋转0.5度 */
         if (isRotating) {
-            renderer->GetActiveCamera()->Azimuth(0.5);
-            renderer->ResetCameraClippingRange();
+            vtkActorCollection* actors = renderer->GetActors();
+            actors->InitTraversal();
+            while (vtkActor* a = actors->GetNextActor()) {
+                a->RotateY(0.5);
+            }
         }
 
         /* 5. 渲染一帧 + 处理手柄交互事件 */
@@ -353,8 +356,11 @@ void VRRenderThread::runDesktopMode()
         processPendingActorsDesktop(renderer.Get());
 
         if (isRotating) {
-            renderer->GetActiveCamera()->Azimuth(0.5);
-            renderer->ResetCameraClippingRange();
+            vtkActorCollection* actors = renderer->GetActors();
+            actors->InitTraversal();
+            while (vtkActor* a = actors->GetNextActor()) {
+                a->RotateY(0.5);
+            }
         }
 
         renderWindow->Render();
