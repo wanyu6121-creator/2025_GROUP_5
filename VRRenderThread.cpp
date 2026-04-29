@@ -23,6 +23,7 @@
 #include <vtkProperty.h>
 #include <vtkCamera.h>
 #include <vtkPlaneSource.h>
+#include <algorithm>
 #include <vtkPolyDataMapper.h>
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
@@ -290,10 +291,56 @@ void VRRenderThread::runVRMode()
     renderWindow->Initialize();
     interactor->Initialize();
 
-    renderer->ResetCamera();
-    renderer->GetActiveCamera()->Azimuth(30);
-    renderer->GetActiveCamera()->Elevation(30);
-    renderer->ResetCameraClippingRange();
+    /* ---- VR相机初始化：让模型近在眼前 ----
+     * ResetCamera() 会把模型推到很远处以适应视口，VR里看起来很小。
+     * 改为手动计算：取模型包围盒，把相机放在模型正前方 1~1.5 倍模型尺寸处，
+     * 人进入VR时模型就在面前触手可及的位置。 */
+    {
+        double bounds[6] = {0,0,0,0,0,0};
+        bool hasBounds = false;
+        vtkActorCollection* acs = renderer->GetActors();
+        acs->InitTraversal();
+        while (vtkActor* a = acs->GetNextActor()) {
+            double b[6]; a->GetBounds(b);
+            if (b[0] > b[1]) continue;
+            if (!hasBounds) {
+                for (int i = 0; i < 6; ++i) bounds[i] = b[i];
+                hasBounds = true;
+            } else {
+                if (b[0]<bounds[0]) bounds[0]=b[0];
+                if (b[1]>bounds[1]) bounds[1]=b[1];
+                if (b[2]<bounds[2]) bounds[2]=b[2];
+                if (b[3]>bounds[3]) bounds[3]=b[3];
+                if (b[4]<bounds[4]) bounds[4]=b[4];
+                if (b[5]>bounds[5]) bounds[5]=b[5];
+            }
+        }
+
+        if (hasBounds) {
+            /* 模型中心 */
+            double cx = (bounds[0] + bounds[1]) / 2.0;
+            double cy = (bounds[2] + bounds[3]) / 2.0;
+            double cz = (bounds[4] + bounds[5]) / 2.0;
+
+            /* 模型最大尺寸（X/Y/Z中最大的一个）*/
+            double sizeX = bounds[1] - bounds[0];
+            double sizeY = bounds[3] - bounds[2];
+            double sizeZ = bounds[5] - bounds[4];
+            double maxSize = std::max({sizeX, sizeY, sizeZ});
+
+            /* 相机放在模型正前方（+Z方向）1.2倍模型尺寸处
+             * 视线水平朝向模型中心，高度与模型中心齐平 */
+            double camDist = maxSize * 1.2;
+
+            renderer->GetActiveCamera()->SetPosition(cx, cy, cz + camDist);
+            renderer->GetActiveCamera()->SetFocalPoint(cx, cy, cz);
+            renderer->GetActiveCamera()->SetViewUp(0.0, 1.0, 0.0);
+            renderer->ResetCameraClippingRange();
+        } else {
+            /* 没有模型时回退到默认视角 */
+            renderer->ResetCamera();
+        }
+    }
 
     /* ---- 主渲染循环 ---- */
     while (!isInterruptionRequested()) {
