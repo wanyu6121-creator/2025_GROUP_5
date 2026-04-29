@@ -167,8 +167,7 @@ MainWindow::MainWindow(QWidget* parent)
     /* ---- 菜单栏 / 工具栏 action 连接 ---- */
     connect(ui->actionAdd_Item,    &QAction::triggered,
             this, &MainWindow::on_actionOpen_File_triggered);
-    connect(ui->actionItem_Options,&QAction::triggered,
-            this, &MainWindow::handleOptionsButton);
+    /* actionItem_Options 由 on_actionItem_Options_triggered 自动连接，无需手动 connect */
     connect(ui->actionDelete_Node, &QAction::triggered,
             this, &MainWindow::handleDeleteNode);
     connect(ui->actionStart_VR,    &QAction::triggered,
@@ -199,8 +198,7 @@ MainWindow::MainWindow(QWidget* parent)
      * treeView 的 contextMenuPolicy 已设为 ActionsContextMenu，
      * 只需 addAction 即可出现在右键菜单中。 */
     ui->treeView->addAction(ui->actionDelete_Node);
-    connect(ui->actionDelete_Node, &QAction::triggered,
-            this, &MainWindow::handleDeleteNode);
+    /* actionDelete_Node 已在第171行连接，此处只需 addAction 加入右键菜单 */
 
     /* 右键菜单：对单个零件独立切换 Clip / Shrink 滤镜（评分要求）*/
     ui->treeView->addAction(ui->actionToggleClip);

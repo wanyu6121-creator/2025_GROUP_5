@@ -991,13 +991,15 @@ static void buildFloorActor(vtkRenderer* renderer)
         }
     }
 
-    /* ---- 步骤2：把所有模型Actor整体上移，底部贴齐 Y=1.2 ----
-     * VR 世界里人眼高约 1.6m，零件底部在 1.2m 处视觉上位于正前方。 */
-    const double TARGET_FLOOR_Y = 0.0;   /* 地板 Y 坐标（世界地面）*/
-    const double DISPLAY_HEIGHT = 1.2;   /* 零件底部离地高度（米）*/
+    /* ---- 步骤2：把所有模型Actor整体上移 ----
+     * DISPLAY_HEIGHT = 模型高度的 0.8 倍，使零件底部悬浮在合适高度
+     * 无论模型单位是毫米还是米，比例自适应，人站立时零件在正前方。 */
+    const double TARGET_FLOOR_Y = 0.0;
 
     if (hasBounds) {
-        double modelBottomY = sceneBounds[2];   /* 当前零件包围盒底部 */
+        double modelBottomY = sceneBounds[2];
+        double modelHeight  = sceneBounds[3] - sceneBounds[2];
+        double DISPLAY_HEIGHT = std::max(modelHeight * 0.8, 0.1);
         double shiftY = (TARGET_FLOOR_Y + DISPLAY_HEIGHT) - modelBottomY;
 
         actors->InitTraversal();
