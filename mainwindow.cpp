@@ -240,6 +240,63 @@ MainWindow::MainWindow(QWidget* parent)
                                     .arg(nowShrunk ? "ON" : "OFF"), 2000);
     });
 
+    ui->treeView->addAction(ui->actionToggleSmooth);
+    connect(ui->actionToggleSmooth, &QAction::triggered, this, [this]() {
+        QModelIndex index = ui->treeView->selectionModel()->currentIndex();
+        if (!index.isValid()) return;
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        bool now = !part->getSmooth();
+        std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
+            if (!p) return;
+            p->setSmooth(en);
+            for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
+        };
+        recurse(part, now);
+        updateRender();
+        renderWindow->Render();
+        emit statusUpdateMessage(
+            QString("%1: Smooth %2").arg(part->data(0).toString())
+                                    .arg(now ? "ON" : "OFF"), 2000);
+    });
+
+    ui->treeView->addAction(ui->actionToggleDecimate);
+    connect(ui->actionToggleDecimate, &QAction::triggered, this, [this]() {
+        QModelIndex index = ui->treeView->selectionModel()->currentIndex();
+        if (!index.isValid()) return;
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        bool now = !part->getDecimate();
+        std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
+            if (!p) return;
+            p->setDecimate(en);
+            for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
+        };
+        recurse(part, now);
+        updateRender();
+        renderWindow->Render();
+        emit statusUpdateMessage(
+            QString("%1: Decimate %2").arg(part->data(0).toString())
+                                      .arg(now ? "ON" : "OFF"), 2000);
+    });
+
+    ui->treeView->addAction(ui->actionToggleElevation);
+    connect(ui->actionToggleElevation, &QAction::triggered, this, [this]() {
+        QModelIndex index = ui->treeView->selectionModel()->currentIndex();
+        if (!index.isValid()) return;
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        bool now = !part->getElevation();
+        std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
+            if (!p) return;
+            p->setElevation(en);
+            for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
+        };
+        recurse(part, now);
+        updateRender();
+        renderWindow->Render();
+        emit statusUpdateMessage(
+            QString("%1: Elevation %2").arg(part->data(0).toString())
+                                       .arg(now ? "ON" : "OFF"), 2000);
+    });
+
     /* ---- 【加分功能A-3】Open Directory：由 Qt 命名约定自动连接，无需手动 connect ---- */
 
     /* ---- 滤镜复选框 ---- */
@@ -247,6 +304,12 @@ MainWindow::MainWindow(QWidget* parent)
             this, &MainWindow::handleClipToggle);
     connect(ui->checkBoxShrink, &QCheckBox::toggled,
             this, &MainWindow::handleShrinkToggle);
+    connect(ui->checkBoxSmooth, &QCheckBox::toggled,
+            this, &MainWindow::handleSmoothToggle);
+    connect(ui->checkBoxDecimate, &QCheckBox::toggled,
+            this, &MainWindow::handleDecimateToggle);
+    connect(ui->checkBoxElevation, &QCheckBox::toggled,
+            this, &MainWindow::handleElevationToggle);
     connect(ui->checkBoxSlice,  &QCheckBox::toggled,
             this, &MainWindow::handleSliceToggle);
 
@@ -737,6 +800,99 @@ void MainWindow::handleShrinkToggle(bool checked)
 
     emit statusUpdateMessage(
         checked ? "Shrink filter applied" : "Shrink filter removed", 2000);
+}
+
+void MainWindow::handleSmoothToggle(bool checked)
+{
+    QModelIndex index = ui->treeView->currentIndex();
+
+    if (!index.isValid()) {
+        ui->checkBoxSmooth->blockSignals(true);
+        ui->checkBoxSmooth->setChecked(false);
+        ui->checkBoxSmooth->blockSignals(false);
+        emit statusUpdateMessage("No item selected — select a part first", 2000);
+        return;
+    }
+
+    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+
+    /* setSmooth() 激活时会自动禁用 clip（类型不兼容），同步 checkbox */
+    selectedPart->setSmooth(checked);
+    ui->checkBoxClip->blockSignals(true);
+    ui->checkBoxClip->setChecked(selectedPart->getClip());
+    ui->checkBoxClip->blockSignals(false);
+
+    updateRender();
+    renderWindow->Render();
+
+    if (vrThread != nullptr && vrThread->isRunning()) {
+        int idx = getActorIndex(selectedPart);
+        double value = FILTER_SMOOTH * 10.0 + (checked ? 1.0 : 0.0);
+        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+    }
+
+    emit statusUpdateMessage(
+        checked ? QString("Smooth applied to: ") + selectedPart->data(0).toString()
+                : QString("Smooth removed from: ") + selectedPart->data(0).toString(),
+        2000);
+}
+
+void MainWindow::handleDecimateToggle(bool checked)
+{
+    QModelIndex index = ui->treeView->currentIndex();
+
+    if (!index.isValid()) {
+        ui->checkBoxDecimate->blockSignals(true);
+        ui->checkBoxDecimate->setChecked(false);
+        ui->checkBoxDecimate->blockSignals(false);
+        emit statusUpdateMessage("No item selected — select a part first", 2000);
+        return;
+    }
+
+    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+    selectedPart->setDecimate(checked);
+    updateRender();
+    renderWindow->Render();
+
+    if (vrThread != nullptr && vrThread->isRunning()) {
+        int idx = getActorIndex(selectedPart);
+        double value = FILTER_DECIMATE * 10.0 + (checked ? 1.0 : 0.0);
+        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+    }
+
+    emit statusUpdateMessage(
+        checked ? QString("Decimate applied to: ") + selectedPart->data(0).toString()
+                : QString("Decimate removed from: ") + selectedPart->data(0).toString(),
+        2000);
+}
+
+void MainWindow::handleElevationToggle(bool checked)
+{
+    QModelIndex index = ui->treeView->currentIndex();
+
+    if (!index.isValid()) {
+        ui->checkBoxElevation->blockSignals(true);
+        ui->checkBoxElevation->setChecked(false);
+        ui->checkBoxElevation->blockSignals(false);
+        emit statusUpdateMessage("No item selected — select a part first", 2000);
+        return;
+    }
+
+    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+    selectedPart->setElevation(checked);
+    updateRender();
+    renderWindow->Render();
+
+    if (vrThread != nullptr && vrThread->isRunning()) {
+        int idx = getActorIndex(selectedPart);
+        double value = FILTER_ELEVATION * 10.0 + (checked ? 1.0 : 0.0);
+        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+    }
+
+    emit statusUpdateMessage(
+        checked ? QString("Elevation applied to: ") + selectedPart->data(0).toString()
+                : QString("Elevation removed from: ") + selectedPart->data(0).toString(),
+        2000);
 }
 
 /* 创意加分：Slice 截面视图（对选中节点，全局 fallback）*/

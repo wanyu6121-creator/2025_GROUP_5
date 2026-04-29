@@ -30,6 +30,12 @@
 #include <vtkSTLReader.h>
 #include <vtkClipDataSet.h>
 #include <vtkShrinkFilter.h>
+#include <vtkSmoothPolyDataFilter.h>
+#include <vtkDecimatePro.h>
+#include <vtkElevationFilter.h>
+#include <vtkLookupTable.h>
+#include <vtkCleanPolyData.h>
+#include <vtkGeometryFilter.h>
 #include <vtkPlane.h>
 #include <vtkPropPicker.h>
 #include <vtkCellPicker.h>
@@ -74,8 +80,11 @@ enum VRCommand {
  *
  * value = filterType * 10 + (enabled ? 1 : 0)
  */
-static const int FILTER_CLIP   = 0;  /**< 裁剪滤镜 */
-static const int FILTER_SHRINK = 1;  /**< 收缩滤镜 */
+static const int FILTER_CLIP      = 0;  /**< clip filter — cuts geometry at x=0 */
+static const int FILTER_SHRINK    = 1;  /**< shrink filter — pulls cells toward centroid */
+static const int FILTER_SMOOTH    = 2;  /**< smooth filter — Laplacian smoothing */
+static const int FILTER_DECIMATE  = 3;  /**< decimate filter — 50% polygon reduction */
+static const int FILTER_ELEVATION = 4;  /**< elevation filter — Z-height rainbow colouring */
 
 /**
  * @brief VR命令结构体，携带命令类型、参数值和目标Actor索引
@@ -280,8 +289,17 @@ private:
     QList<vtkSmartPointer<vtkDataSetMapper>>  mapperList;
     QList<vtkSmartPointer<vtkClipDataSet>>    clipFilters;
     QList<vtkSmartPointer<vtkShrinkFilter>>   shrinkFilters;
+    QList<vtkSmartPointer<vtkSmoothPolyDataFilter>> smoothFilters;  /**< Laplacian smooth */
+    QList<vtkSmartPointer<vtkDecimatePro>>    decimateFilters;      /**< polygon reduction */
+    QList<vtkSmartPointer<vtkElevationFilter>> elevationFilters;    /**< Z-height colour */
+    QList<vtkSmartPointer<vtkLookupTable>>    elevationLUTs;        /**< colour tables */
+    QList<vtkSmartPointer<vtkCleanPolyData>>  cleanFilters;         /**< pre-decimate clean */
+    QList<vtkSmartPointer<vtkGeometryFilter>> geometryFilters;      /**< UG→PolyData conv */
     QList<bool>                               clipState;
     QList<bool>                               shrinkState;
+    QList<bool>                               smoothState;    /**< smooth filter active */
+    QList<bool>                               decimateState;  /**< decimate filter active */
+    QList<bool>                               elevationState; /**< elevation filter active */
 
     /* ---- 【B方案】VR内选中状态 ---- */
     int              selectedActorIndex;  /**< 当前选中的 actor 索引，-1=无 */

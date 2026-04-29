@@ -7,6 +7,8 @@ find_package(VTK REQUIRED COMPONENTS
     CommonCore
     CommonDataModel
     FiltersSources
+    FiltersGeometry
+    FiltersCore
     IOGeometry
     ImagingCore
     RenderingCore

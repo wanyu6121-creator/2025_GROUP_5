@@ -147,9 +147,49 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
 
     clipFilters.append(cf);
     shrinkFilters.append(sf);
-    mapperList.append(vtkSmartPointer<vtkDataSetMapper>::New()); /* 占位，未使用 */
+
+    /* ---- Smooth filter ---- */
+    vtkSmartPointer<vtkSmoothPolyDataFilter> smf = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
+    smf->SetNumberOfIterations(20);
+    smf->SetRelaxationFactor(0.1);
+    smf->FeatureEdgeSmoothingOff();
+    smf->BoundarySmoothingOn();
+    smoothFilters.append(smf);
+
+    /* ---- Decimate filter (needs clean + geometry conversion) ---- */
+    vtkSmartPointer<vtkGeometryFilter>  gf  = vtkSmartPointer<vtkGeometryFilter>::New();
+    vtkSmartPointer<vtkCleanPolyData>   clf = vtkSmartPointer<vtkCleanPolyData>::New();
+    vtkSmartPointer<vtkDecimatePro>     df  = vtkSmartPointer<vtkDecimatePro>::New();
+    df->SetTargetReduction(0.9);
+    df->PreserveTopologyOn();
+    geometryFilters.append(gf);
+    cleanFilters.append(clf);
+    decimateFilters.append(df);
+
+    /* ---- Elevation filter + LUT ---- */
+    vtkSmartPointer<vtkElevationFilter> ef = vtkSmartPointer<vtkElevationFilter>::New();
+    if (reader) {
+        reader->Update();
+        double bounds[6];
+        reader->GetOutput()->GetBounds(bounds);
+        double zMin = bounds[4], zMax = bounds[5];
+        if (zMax - zMin < 1e-6) { zMin -= 1.0; zMax += 1.0; }
+        ef->SetLowPoint(0.0, 0.0, zMin);
+        ef->SetHighPoint(0.0, 0.0, zMax);
+    }
+    vtkSmartPointer<vtkLookupTable> lut = vtkSmartPointer<vtkLookupTable>::New();
+    lut->SetNumberOfTableValues(256);
+    lut->SetHueRange(0.667, 0.0);   /* blue → red */
+    lut->Build();
+    elevationFilters.append(ef);
+    elevationLUTs.append(lut);
+
+    mapperList.append(vtkSmartPointer<vtkDataSetMapper>::New());
     clipState.append(clipOn);
     shrinkState.append(shrinkOn);
+    smoothState.append(false);
+    decimateState.append(false);
+    elevationState.append(false);
     actorNames.append("");
     actorColorIdx.append(0);
 
@@ -163,8 +203,17 @@ void VRRenderThread::clearActors()
     mapperList.clear();
     clipFilters.clear();
     shrinkFilters.clear();
+    smoothFilters.clear();
+    decimateFilters.clear();
+    elevationFilters.clear();
+    elevationLUTs.clear();
+    cleanFilters.clear();
+    geometryFilters.clear();
     clipState.clear();
     shrinkState.clear();
+    smoothState.clear();
+    decimateState.clear();
+    elevationState.clear();
     actorNames.clear();
     actorColorIdx.clear();
     selectedActorIndex = -1;
@@ -546,8 +595,7 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
         break;
 
     case CMD_APPLY_FILTER: {
-        /* 解码：filterType * 10 + (enabled ? 1 : 0)
-         * filterType: 0=clip, 1=shrink */
+        /* 解码：filterType * 10 + (enabled ? 1 : 0) */
         int encoded    = static_cast<int>(vcmd.value + 0.5);
         int filterType = encoded / 10;
         bool enabled   = (encoded % 10) != 0;
@@ -555,9 +603,11 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
 
         if (idx < 0 || idx >= actorList.size()) break;
 
-        /* 更新状态并重建该Actor的pipeline */
-        if (filterType == FILTER_CLIP)   clipState[idx]   = enabled;
-        if (filterType == FILTER_SHRINK) shrinkState[idx] = enabled;
+        if (filterType == FILTER_CLIP)      clipState[idx]      = enabled;
+        if (filterType == FILTER_SHRINK)    shrinkState[idx]    = enabled;
+        if (filterType == FILTER_SMOOTH)    smoothState[idx]    = enabled;
+        if (filterType == FILTER_DECIMATE)  decimateState[idx]  = enabled;
+        if (filterType == FILTER_ELEVATION) elevationState[idx] = enabled;
         rebuildPipeline(idx);
         break;
     }
@@ -642,8 +692,11 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
 
         if (idx < 0 || idx >= actorList.size()) break;
 
-        if (filterType == FILTER_CLIP)   clipState[idx]   = enabled;
-        if (filterType == FILTER_SHRINK) shrinkState[idx] = enabled;
+        if (filterType == FILTER_CLIP)      clipState[idx]      = enabled;
+        if (filterType == FILTER_SHRINK)    shrinkState[idx]    = enabled;
+        if (filterType == FILTER_SMOOTH)    smoothState[idx]    = enabled;
+        if (filterType == FILTER_DECIMATE)  decimateState[idx]  = enabled;
+        if (filterType == FILTER_ELEVATION) elevationState[idx] = enabled;
         rebuildPipeline(idx);
         break;
     }
@@ -767,42 +820,48 @@ void VRRenderThread::rebuildPipeline(int idx)
 
     vtkActor*     actor  = actorList[idx];
     vtkSTLReader* reader = readerList[idx].Get();
-
     if (!actor || !reader) return;
 
-    /* 取出Actor当前绑定的Mapper（由 ModelPart::getNewActor() 创建）*/
-    vtkDataSetMapper* mapper =
-        vtkDataSetMapper::SafeDownCast(actor->GetMapper());
+    vtkDataSetMapper* mapper = vtkDataSetMapper::SafeDownCast(actor->GetMapper());
     if (!mapper) return;
 
-    vtkClipDataSet*  cf = clipFilters[idx].Get();
-    vtkShrinkFilter* sf = shrinkFilters[idx].Get();
+    /* Mirror ModelPart::updatePipeline():
+     * STLReader → [Clip] → [Shrink] → [Smooth] → [Decimate] → [Elevation] → Mapper */
+    vtkAlgorithmOutput* current = reader->GetOutputPort();
 
-    bool doClip   = clipState[idx];
-    bool doShrink = shrinkState[idx];
-
-    /* 根据两个flag的组合选择pipeline路由 */
-    if (doClip && doShrink) {
-        /* reader → clip → shrink → mapper */
-        cf->SetInputConnection(reader->GetOutputPort());
-        sf->SetInputConnection(cf->GetOutputPort());
-        mapper->SetInputConnection(sf->GetOutputPort());
-
-    } else if (doClip) {
-        /* reader → clip → mapper */
-        cf->SetInputConnection(reader->GetOutputPort());
-        mapper->SetInputConnection(cf->GetOutputPort());
-
-    } else if (doShrink) {
-        /* reader → shrink → mapper */
-        sf->SetInputConnection(reader->GetOutputPort());
-        mapper->SetInputConnection(sf->GetOutputPort());
-
-    } else {
-        /* reader → mapper（无滤镜）*/
-        mapper->SetInputConnection(reader->GetOutputPort());
+    if (clipState[idx]) {
+        clipFilters[idx]->SetInputConnection(current);
+        current = clipFilters[idx]->GetOutputPort();
     }
 
+    if (shrinkState[idx]) {
+        shrinkFilters[idx]->SetInputConnection(current);
+        current = shrinkFilters[idx]->GetOutputPort();
+    }
+
+    if (smoothState[idx]) {
+        smoothFilters[idx]->SetInputConnection(current);
+        current = smoothFilters[idx]->GetOutputPort();
+    }
+
+    if (decimateState[idx]) {
+        geometryFilters[idx]->SetInputConnection(current);
+        cleanFilters[idx]->SetInputConnection(geometryFilters[idx]->GetOutputPort());
+        decimateFilters[idx]->SetInputConnection(cleanFilters[idx]->GetOutputPort());
+        current = decimateFilters[idx]->GetOutputPort();
+    }
+
+    if (elevationState[idx]) {
+        elevationFilters[idx]->SetInputConnection(current);
+        current = elevationFilters[idx]->GetOutputPort();
+        mapper->SetLookupTable(elevationLUTs[idx]);
+        mapper->SetScalarRange(0.0, 1.0);
+        mapper->ScalarVisibilityOn();
+    } else {
+        mapper->ScalarVisibilityOff();
+    }
+
+    mapper->SetInputConnection(current);
     mapper->Update();
 }
 

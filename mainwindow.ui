@@ -61,6 +61,24 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="checkBoxSmooth">
+        <property name="text"><string>Smooth</string></property>
+        <property name="toolTip"><string>Laplacian smoothing (20 iterations)</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkBoxDecimate">
+        <property name="text"><string>Decimate</string></property>
+        <property name="toolTip"><string>Reduce polygon count by 90%</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkBoxElevation">
+        <property name="text"><string>Elevation</string></property>
+        <property name="toolTip"><string>Colour by Z-height (rainbow)</string></property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="checkBoxSlice">
         <property name="text"><string>Slice</string></property>
         <property name="toolTip"><string>Show cross-section slices (creative feature) for selected part</string></property>
@@ -236,6 +254,24 @@
   <action name="actionToggleShrink">
    <property name="text"><string>Toggle Shrink</string></property>
    <property name="toolTip"><string>Toggle vtkShrinkFilter on this part only</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionToggleSmooth">
+   <property name="text"><string>Toggle Smooth</string></property>
+   <property name="toolTip"><string>Toggle Laplacian smooth on this part only</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionToggleDecimate">
+   <property name="text"><string>Toggle Decimate</string></property>
+   <property name="toolTip"><string>Toggle polygon reduction on this part only</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionToggleElevation">
+   <property name="text"><string>Toggle Elevation</string></property>
+   <property name="toolTip"><string>Toggle Z-height colour on this part only</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 
