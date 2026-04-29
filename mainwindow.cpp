@@ -3,6 +3,9 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QDirIterator>
+#include <QToolButton>
+#include <QMenu>
+#include <functional>
 #include "optiondialog.h"
 
 #include <vtkSmartPointer.h>
@@ -18,6 +21,25 @@
 #include <vtkImageData.h>
 #include <cmath>
 #include <cstdlib>
+
+/* ================================================================
+ * 过滤器递归辅助函数（前置声明，供构造函数 lambda 使用）
+ * ================================================================ */
+static void applyClipRecursive(ModelPart* part, bool enabled)
+{
+    if (!part) return;
+    part->setClip(enabled);
+    for (int i = 0; i < part->childCount(); ++i)
+        applyClipRecursive(part->child(i), enabled);
+}
+
+static void applyShrinkRecursive(ModelPart* part, bool enabled)
+{
+    if (!part) return;
+    part->setShrink(enabled);
+    for (int i = 0; i < part->childCount(); ++i)
+        applyShrinkRecursive(part->child(i), enabled);
+}
 
 /* ================================================================
  * 程序生成星空贴图（GUI renderer 背景）
@@ -98,11 +120,67 @@ MainWindow::MainWindow(QWidget* parent)
 {
     ui->setupUi(this);
 
-    /* ---- 原有信号槽 ---- */
-    connect(ui->pushButton,   &QPushButton::released,
+    /* ---- 工具栏：File 下拉按钮（Open File + Open Directory）---- */
+    {
+        QMenu* fileMenu = new QMenu(this);
+        fileMenu->addAction(ui->actionOpen_File);
+        fileMenu->addAction(ui->actionOpen_Directory);
+
+        QToolButton* fileBtn = new QToolButton(this);
+        fileBtn->setText("File");
+        fileBtn->setToolTip("File: Open file or directory");
+        fileBtn->setMenu(fileMenu);
+        fileBtn->setPopupMode(QToolButton::MenuButtonPopup);
+        fileBtn->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        fileBtn->setMinimumWidth(50);
+
+        ui->toolBar->insertWidget(ui->toolBar->actions().first(), fileBtn);
+    }
+
+    /* ---- 工具栏：Item 下拉按钮（Add Item + Item Options + Delete Node）---- */
+    {
+        QMenu* itemMenu = new QMenu(this);
+        itemMenu->addAction(ui->actionAdd_Item);
+        itemMenu->addAction(ui->actionItem_Options);
+        itemMenu->addSeparator();
+        itemMenu->addAction(ui->actionDelete_Node);
+
+        QToolButton* itemBtn = new QToolButton(this);
+        itemBtn->setText("Item");
+        itemBtn->setToolTip("Item: Add, edit or delete parts");
+        itemBtn->setMenu(itemMenu);
+        itemBtn->setPopupMode(QToolButton::MenuButtonPopup);
+        itemBtn->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        itemBtn->setMinimumWidth(50);
+
+        /* 插入到第一个 separator 之前（即 File 按钮之后）*/
+        QAction* firstSep = nullptr;
+        for (QAction* a : ui->toolBar->actions()) {
+            if (a->isSeparator()) { firstSep = a; break; }
+        }
+        if (firstSep)
+            ui->toolBar->insertWidget(firstSep, itemBtn);
+        else
+            ui->toolBar->addWidget(itemBtn);
+    }
+
+    /* ---- 菜单栏 / 工具栏 action 连接 ---- */
+    connect(ui->actionAdd_Item,    &QAction::triggered,
             this, &MainWindow::on_actionOpen_File_triggered);
-    connect(ui->pushButton_2, &QPushButton::released,
+    connect(ui->actionItem_Options,&QAction::triggered,
             this, &MainWindow::handleOptionsButton);
+    connect(ui->actionDelete_Node, &QAction::triggered,
+            this, &MainWindow::handleDeleteNode);
+    connect(ui->actionStart_VR,    &QAction::triggered,
+            this, &MainWindow::handleStartVR);
+    connect(ui->actionStop_VR,     &QAction::triggered,
+            this, &MainWindow::handleStopVR);
+    connect(ui->actionReset_View,  &QAction::triggered,
+            this, &MainWindow::handleResetView);
+    connect(ui->actionToggle_Rotate, &QAction::triggered,
+            this, &MainWindow::handleToggleRotate);
+
+    /* ---- 原有按钮行已删除，连接迁移到菜单/工具栏 action ---- */
     ui->treeView->addAction(ui->actionItem_Options);
     /* ---- 【B方案】VR内选中零件通知 ---- */
     connect(vrThread, &VRRenderThread::vrActorSelected,
@@ -124,35 +202,64 @@ MainWindow::MainWindow(QWidget* parent)
     connect(ui->actionDelete_Node, &QAction::triggered,
             this, &MainWindow::handleDeleteNode);
 
-    /* ---- 【加分功能A-3】Open Directory 菜单项 ---- */
-    connect(ui->actionOpen_Directory, &QAction::triggered,
-            this, &MainWindow::on_actionOpen_Directory_triggered);
+    /* 右键菜单：对单个零件独立切换 Clip / Shrink 滤镜（评分要求）*/
+    ui->treeView->addAction(ui->actionToggleClip);
+    connect(ui->actionToggleClip, &QAction::triggered, this, [this]() {
+        QModelIndex index = ui->treeView->selectionModel()->currentIndex();
+        if (!index.isValid()) return;
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        bool nowClipped = !part->getClip();
+        /* 递归设置选中节点及子节点的 clip 状态 */
+        std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
+            if (!p) return;
+            p->setClip(en);
+            for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
+        };
+        recurse(part, nowClipped);
+        updateRender();
+        renderWindow->Render();
+        emit statusUpdateMessage(
+            QString("%1: Clip %2").arg(part->data(0).toString())
+                                  .arg(nowClipped ? "ON" : "OFF"), 2000);
+    });
+
+    ui->treeView->addAction(ui->actionToggleShrink);
+    connect(ui->actionToggleShrink, &QAction::triggered, this, [this]() {
+        QModelIndex index = ui->treeView->selectionModel()->currentIndex();
+        if (!index.isValid()) return;
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        bool nowShrunk = !part->getShrink();
+        std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
+            if (!p) return;
+            p->setShrink(en);
+            for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
+        };
+        recurse(part, nowShrunk);
+        updateRender();
+        renderWindow->Render();
+        emit statusUpdateMessage(
+            QString("%1: Shrink %2").arg(part->data(0).toString())
+                                    .arg(nowShrunk ? "ON" : "OFF"), 2000);
+    });
+
+    /* ---- 【加分功能A-3】Open Directory：由 Qt 命名约定自动连接，无需手动 connect ---- */
 
     /* ---- 滤镜复选框 ---- */
     connect(ui->checkBoxClip,   &QCheckBox::toggled,
             this, &MainWindow::handleClipToggle);
     connect(ui->checkBoxShrink, &QCheckBox::toggled,
             this, &MainWindow::handleShrinkToggle);
+    connect(ui->checkBoxSlice,  &QCheckBox::toggled,
+            this, &MainWindow::handleSliceToggle);
 
-    /* ---- VR控制按钮 ---- */
-    connect(ui->pushButtonStartVR,   &QPushButton::released,
-            this, &MainWindow::handleStartVR);
-    connect(ui->pushButtonStopVR,    &QPushButton::released,
-            this, &MainWindow::handleStopVR);
-    connect(ui->pushButtonRotate,    &QPushButton::released,
-            this, &MainWindow::handleToggleRotate);
-    connect(ui->pushButtonResetView, &QPushButton::released,
-            this, &MainWindow::handleResetView);
+    /* ---- VR控制：已迁移到工具栏 action，此处保留空注释 ---- */
 
-    /* ---- 【创意功能】光照强度滑块 ----
-     * sliderLightIntensity 范围 0~100，初始值40（对应强度0.8）*/
+    /* ---- 【创意功能】光照强度滑块 ---- */
     connect(ui->sliderLightIntensity, &QSlider::valueChanged,
             this, &MainWindow::handleLightIntensityChanged);
     ui->sliderLightIntensity->setValue(40);  /* 初始强度 0.8 = 40/100*2.0 */
 
-    /* ---- 【加分功能】删除节点：右键菜单 + Delete Node 按钮 两路触发 ---- */
-    connect(ui->pushButtonDelete, &QPushButton::released,
-            this, &MainWindow::handleDeleteNode);
+    /* ---- 删除节点：通过工具栏 Item 菜单 + 右键菜单触发 ---- */
 
     /* ---- 初始化TreeView ---- */
     this->partList = new ModelPartList("PartsList");
@@ -242,7 +349,7 @@ void MainWindow::handleStartVR()
 
     actorIndexMap.clear();
     isVRRotating = false;
-    ui->pushButtonRotate->setText("Start Rotate");
+    
 
     vrThread = new VRRenderThread(this);
 
@@ -274,7 +381,7 @@ void MainWindow::handleStopVR()
     }
 
     isVRRotating = false;
-    ui->pushButtonRotate->setText("Start Rotate");
+    
     emit statusUpdateMessage("VR stopped.", 3000);
 }
 
@@ -291,12 +398,12 @@ void MainWindow::handleToggleRotate()
     if (isVRRotating) {
         vrThread->issueCommand(CMD_STOP_ROTATE, 0.0);
         isVRRotating = false;
-        ui->pushButtonRotate->setText("Start Rotate");
+        
         emit statusUpdateMessage("VR rotation stopped.", 2000);
     } else {
         vrThread->issueCommand(CMD_START_ROTATE, 0.0);
         isVRRotating = true;
-        ui->pushButtonRotate->setText("Stop Rotate");
+        
         emit statusUpdateMessage("VR rotation started.", 2000);
     }
 }
@@ -313,7 +420,7 @@ void MainWindow::handleResetView()
 
     vrThread->issueCommand(CMD_RESET_VIEW, 0.0);
     isVRRotating = false;
-    ui->pushButtonRotate->setText("Start Rotate");
+    
     emit statusUpdateMessage("VR view reset.", 2000);
 }
 
@@ -587,28 +694,17 @@ void MainWindow::on_actionItem_Options_triggered()
  * 递归作用于选中节点及其所有子节点
  * ================================================================ */
 
-/* 辅助：递归对一棵子树的所有节点应用 clip 状态 */
-static void applyClipRecursive(ModelPart* part, bool enabled)
-{
-    if (!part) return;
-    part->setClip(enabled);
-    for (int i = 0; i < part->childCount(); ++i)
-        applyClipRecursive(part->child(i), enabled);
-}
-
-/* 辅助：递归对一棵子树的所有节点应用 shrink 状态 */
-static void applyShrinkRecursive(ModelPart* part, bool enabled)
-{
-    if (!part) return;
-    part->setShrink(enabled);
-    for (int i = 0; i < part->childCount(); ++i)
-        applyShrinkRecursive(part->child(i), enabled);
-}
-
 void MainWindow::handleClipToggle(bool checked)
 {
-    /* 全局应用：从 rootItem 递归所有零件，无需选中节点 */
-    applyClipRecursive(partList->getRootItem(), checked);
+    /* Clip 对选中节点及其子节点独立应用（评分要求：每个零件独立）*/
+    QModelIndex index = ui->treeView->currentIndex();
+    if (index.isValid()) {
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        applyClipRecursive(part, checked);
+    } else {
+        /* 无选中时全局应用 */
+        applyClipRecursive(partList->getRootItem(), checked);
+    }
     updateRender();
     renderWindow->Render();
 
@@ -619,14 +715,19 @@ void MainWindow::handleClipToggle(bool checked)
     }
 
     emit statusUpdateMessage(
-        checked ? "Slice filter applied to all parts"
-                : "Slice filter removed from all parts", 2000);
+        checked ? "Clip filter applied" : "Clip filter removed", 2000);
 }
 
 void MainWindow::handleShrinkToggle(bool checked)
 {
-    /* 全局应用：从 rootItem 递归所有零件，无需选中节点 */
-    applyShrinkRecursive(partList->getRootItem(), checked);
+    /* Shrink 对选中节点及其子节点独立应用 */
+    QModelIndex index = ui->treeView->currentIndex();
+    if (index.isValid()) {
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        applyShrinkRecursive(part, checked);
+    } else {
+        applyShrinkRecursive(partList->getRootItem(), checked);
+    }
     updateRender();
     renderWindow->Render();
 
@@ -637,8 +738,31 @@ void MainWindow::handleShrinkToggle(bool checked)
     }
 
     emit statusUpdateMessage(
-        checked ? "Shrink filter applied to all parts"
-                : "Shrink filter removed from all parts", 2000);
+        checked ? "Shrink filter applied" : "Shrink filter removed", 2000);
+}
+
+/* 创意加分：Slice 截面视图（对选中节点，全局 fallback）*/
+void MainWindow::handleSliceToggle(bool checked)
+{
+    auto applySlice = [](ModelPart* part, bool en, auto& self) -> void {
+        if (!part) return;
+        part->setSlice(en);
+        for (int i = 0; i < part->childCount(); ++i)
+            self(part->child(i), en, self);
+    };
+
+    QModelIndex index = ui->treeView->currentIndex();
+    if (index.isValid()) {
+        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
+        applySlice(part, checked, applySlice);
+    } else {
+        applySlice(partList->getRootItem(), checked, applySlice);
+    }
+    updateRender();
+    renderWindow->Render();
+
+    emit statusUpdateMessage(
+        checked ? "Slice view applied" : "Slice view removed", 2000);
 }
 
 /* ================================================================

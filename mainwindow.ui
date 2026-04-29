@@ -51,8 +51,8 @@
       </item>
       <item>
        <widget class="QCheckBox" name="checkBoxClip">
-        <property name="text"><string>Slice</string></property>
-        <property name="toolTip"><string>Cut model into 6 horizontal cross-sections along Y axis</string></property>
+        <property name="text"><string>Clip</string></property>
+        <property name="toolTip"><string>Apply vtkClipDataSet to selected part (x=0 plane)</string></property>
        </widget>
       </item>
       <item>
@@ -61,86 +61,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="checkBoxSlice">
+        <property name="text"><string>Slice</string></property>
+        <property name="toolTip"><string>Show cross-section slices (creative feature) for selected part</string></property>
+       </widget>
+      </item>
+      <item>
        <spacer name="filterSpacer">
-        <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
-        <property name="sizeHint" stdset="0">
-         <size><width>40</width><height>20</height></size>
-        </property>
-       </spacer>
-      </item>
-     </layout>
-    </item>
-
-    <!-- 操作按钮行 -->
-    <item>
-     <layout class="QHBoxLayout" name="buttonLayout">
-
-      <!-- 原有按钮 -->
-      <item>
-       <widget class="QPushButton" name="pushButton">
-        <property name="text"><string>Add Item</string></property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButton_2">
-        <property name="text"><string>Item Options</string></property>
-       </widget>
-      </item>
-
-      <!-- 分隔线 -->
-      <item>
-       <widget class="QFrame" name="line">
-        <property name="frameShape"><enum>QFrame::Shape::VLine</enum></property>
-        <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
-       </widget>
-      </item>
-
-      <!-- VR控制按钮 -->
-      <item>
-       <widget class="QPushButton" name="pushButtonStartVR">
-        <property name="text"><string>Start VR</string></property>
-        <property name="toolTip"><string>Start VR rendering on HTC Vive</string></property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButtonStopVR">
-        <property name="text"><string>Stop VR</string></property>
-        <property name="toolTip"><string>Stop VR rendering</string></property>
-       </widget>
-      </item>
-
-      <!-- 分隔线 -->
-      <item>
-       <widget class="QFrame" name="line2">
-        <property name="frameShape"><enum>QFrame::Shape::VLine</enum></property>
-        <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
-       </widget>
-      </item>
-
-      <!-- 动画控制按钮（阶段三新增）-->
-      <item>
-       <widget class="QPushButton" name="pushButtonRotate">
-        <property name="text"><string>Start Rotate</string></property>
-        <property name="toolTip"><string>Toggle model rotation in VR</string></property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QPushButton" name="pushButtonResetView">
-        <property name="text"><string>Reset View</string></property>
-        <property name="toolTip"><string>Reset VR camera to initial position</string></property>
-       </widget>
-      </item>
-
-      <!-- 删除节点按钮（加分功能）-->
-      <item>
-       <widget class="QPushButton" name="pushButtonDelete">
-        <property name="text"><string>Delete Node</string></property>
-        <property name="toolTip"><string>Delete selected node and remove from VR scene</string></property>
-       </widget>
-      </item>
-
-      <item>
-       <spacer name="horizontalSpacer">
         <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
         <property name="sizeHint" stdset="0">
          <size><width>40</width><height>20</height></size>
@@ -188,26 +115,24 @@
    </layout>
   </widget>
 
-   <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect><x>0</x><y>0</y><width>960</width><height>22</height></rect>
-   </property>
-   <widget class="QMenu" name="menuFile">
-    <property name="title"><string>File</string></property>
-    <addaction name="actionOpen_File"/>
-    <addaction name="actionOpen_Directory"/>
-   </widget>
-   <addaction name="menuFile"/>
-  </widget>
-
   <widget class="QStatusBar" name="statusbar"/>
 
+  <!-- 工具栏：文字按钮，File/Item 为下拉菜单 -->
   <widget class="QToolBar" name="toolBar">
    <property name="windowTitle"><string>toolBar</string></property>
+   <property name="toolButtonStyle"><enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum></property>
    <attribute name="toolBarArea"><enum>TopToolBarArea</enum></attribute>
    <attribute name="toolBarBreak"><bool>false</bool></attribute>
-   <addaction name="actionOpen_File"/>
+   <addaction name="separator"/>
+   <addaction name="actionStart_VR"/>
+   <addaction name="actionStop_VR"/>
+   <addaction name="separator"/>
+   <addaction name="actionToggle_Rotate"/>
+   <addaction name="separator"/>
+   <addaction name="actionReset_View"/>
   </widget>
+
+  <!-- ===== Actions ===== -->
 
   <action name="actionOpen_File">
    <property name="icon">
@@ -215,29 +140,102 @@
      <normaloff>:/icon/Icons/fileopen.png</normaloff>:/icon/Icons/fileopen.png
     </iconset>
    </property>
-   <property name="text"><string>Open File</string></property>
+   <property name="text"><string>Open File...</string></property>
+   <property name="toolTip"><string>Load a single STL file (Ctrl+O)</string></property>
+   <property name="shortcut"><string>Ctrl+O</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 
-  <action name="actionItem_Options">
-   <property name="text"><string>Item Options</string></property>
-   <property name="toolTip"><string>Item Options</string></property>
-   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
-  </action>
-
-  <!-- 【加分功能A-1】批量目录加载菜单项 -->
   <action name="actionOpen_Directory">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/Icons/filesave.png</normaloff>:/icon/Icons/filesave.png
+    </iconset>
+   </property>
    <property name="text"><string>Open Directory...</string></property>
-   <property name="toolTip"><string>Load all STL files from a directory (recursive)</string></property>
+   <property name="toolTip"><string>Load all STL files from a directory (Ctrl+Shift+O)</string></property>
    <property name="shortcut"><string>Ctrl+Shift+O</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 
-  <!-- 【加分功能A-2】右键菜单 Delete 节点 -->
+  <action name="actionAdd_Item">
+   <property name="text"><string>Add Item</string></property>
+   <property name="toolTip"><string>Add a single STL as child of selected node</string></property>
+   <property name="shortcut"><string>Ctrl+A</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionItem_Options">
+   <property name="text"><string>Item Options...</string></property>
+   <property name="toolTip"><string>Edit name, colour and visibility of selected part</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
   <action name="actionDelete_Node">
-   <property name="text"><string>Delete</string></property>
+   <property name="text"><string>Delete Node</string></property>
    <property name="toolTip"><string>Delete selected node and remove from VR scene</string></property>
    <property name="shortcut"><string>Del</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionStart_VR">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/Icons/startVR.png</normaloff>:/icon/Icons/startVR.png
+    </iconset>
+   </property>
+   <property name="text"><string>Start VR</string></property>
+   <property name="toolTip"><string>Launch VR render thread (F5)</string></property>
+   <property name="shortcut"><string>F5</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionStop_VR">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/Icons/stopVR.png</normaloff>:/icon/Icons/stopVR.png
+    </iconset>
+   </property>
+   <property name="text"><string>Stop VR</string></property>
+   <property name="toolTip"><string>Stop VR render thread (F6)</string></property>
+   <property name="shortcut"><string>F6</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionReset_View">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/Icons/print.png</normaloff>:/icon/Icons/print.png
+    </iconset>
+   </property>
+   <property name="text"><string>Reset View</string></property>
+   <property name="toolTip"><string>Reset camera to default position (F7)</string></property>
+   <property name="shortcut"><string>F7</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionToggle_Rotate">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/Icons/help.png</normaloff>:/icon/Icons/help.png
+    </iconset>
+   </property>
+   <property name="text"><string>Toggle Rotate</string></property>
+   <property name="toolTip"><string>Start / stop auto-rotation animation (F8)</string></property>
+   <property name="shortcut"><string>F8</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <!-- 右键菜单专用 actions -->
+  <action name="actionToggleClip">
+   <property name="text"><string>Toggle Clip</string></property>
+   <property name="toolTip"><string>Toggle vtkClipDataSet filter on this part only</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionToggleShrink">
+   <property name="text"><string>Toggle Shrink</string></property>
+   <property name="toolTip"><string>Toggle vtkShrinkFilter on this part only</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 
