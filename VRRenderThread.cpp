@@ -19,6 +19,7 @@
 
 #include "VRRenderThread.h"
 
+#include <QCoreApplication>
 #include <vtkNew.h>
 #include <vtkProperty.h>
 #include <vtkCamera.h>
@@ -59,8 +60,12 @@ VRRenderThread::VRRenderThread(QObject* parent)
     , selectedActorIndex(-1)
     , rotationAngle(0.0)
     , initCamSaved(false)
+    , isDragging(false)
+    , dragActorIndex(-1)
 {
     savedColor[0] = savedColor[1] = savedColor[2] = 1.0;
+    dragOffset[0] = dragOffset[1] = dragOffset[2] = 0.0;
+    lastControllerPos[0] = lastControllerPos[1] = lastControllerPos[2] = 0.0;
 }
 
 VRRenderThread::~VRRenderThread()
@@ -275,7 +280,6 @@ void VRRenderThread::runVRMode()
     interactor->SetRenderWindow(renderWindow);
     renderer->SetActiveCamera(camera);
 
-    /* 有Skybox时背景颜色不可见，但仍设置为深蓝作为备用 */
     renderer->SetBackground(0.05, 0.05, 0.15);
 
     /* 添加启动时已注册的所有模型Actor */
@@ -288,14 +292,22 @@ void VRRenderThread::runVRMode()
     setupLighting(renderer.Get());
     setupSkybox(renderer.Get(), renderWindow.Get());
 
-    /* 初始化渲染窗口和交互器（手柄控制器在此启用）*/
+    /* ---- Action manifest 必须在 Initialize() 之前设置 ----
+     * SetActionManifestDirectory 指定整个 vrbindings 目录，
+     * SteamVR 才能找到 vtk_openvr_actions.json 及各手柄的绑定文件。
+     * SetActionManifestFileName 再指定具体的 actions 文件。
+     * 两者都要设置，缺一不可，否则 SteamVR 不加载绑定，手柄无射线。 */
+    QString bindingsDir  = QCoreApplication::applicationDirPath() + "/vrbindings";
+    QString manifestPath = bindingsDir + "/vtk_openvr_actions.json";
+    interactor->SetActionManifestDirectory(bindingsDir.toStdString());
+    interactor->SetActionManifestFileName(manifestPath.toStdString());
+
+    /* Initialize 顺序：先 renderWindow（建立 OpenVR session），
+     * 再 interactor（注册 action set）。顺序颠倒会导致绑定失效。 */
     renderWindow->Initialize();
     interactor->Initialize();
 
-    /* ---- VR相机初始化：让模型近在眼前 ----
-     * ResetCamera() 会把模型推到很远处以适应视口，VR里看起来很小。
-     * 改为手动计算：取模型包围盒，把相机放在模型正前方 1~1.5 倍模型尺寸处，
-     * 人进入VR时模型就在面前触手可及的位置。 */
+    /* ---- VR相机初始化：让模型近在眼前 ---- */
     {
         double bounds[6] = {0,0,0,0,0,0};
         bool hasBounds = false;
@@ -316,73 +328,328 @@ void VRRenderThread::runVRMode()
                 if (b[5]>bounds[5]) bounds[5]=b[5];
             }
         }
-
         if (hasBounds) {
-            /* 模型中心 */
             double cx = (bounds[0] + bounds[1]) / 2.0;
             double cy = (bounds[2] + bounds[3]) / 2.0;
             double cz = (bounds[4] + bounds[5]) / 2.0;
-
-            /* 模型最大尺寸（X/Y/Z中最大的一个）*/
-            double sizeX = bounds[1] - bounds[0];
-            double sizeY = bounds[3] - bounds[2];
-            double sizeZ = bounds[5] - bounds[4];
-            double maxSize = std::max({sizeX, sizeY, sizeZ});
-
-            /* 相机放在模型正前方（+Z方向）1.2倍模型尺寸处
-             * 视线水平朝向模型中心，高度与模型中心齐平 */
+            double maxSize = std::max({bounds[1]-bounds[0],
+                                       bounds[3]-bounds[2],
+                                       bounds[5]-bounds[4]});
             double camDist = maxSize * 1.2;
-
             renderer->GetActiveCamera()->SetPosition(cx, cy, cz + camDist);
             renderer->GetActiveCamera()->SetFocalPoint(cx, cy, cz);
             renderer->GetActiveCamera()->SetViewUp(0.0, 1.0, 0.0);
             renderer->ResetCameraClippingRange();
-
-            /* 保存初始相机参数，供 Reset View 恢复 */
             renderer->GetActiveCamera()->GetPosition(initCamPos);
             renderer->GetActiveCamera()->GetFocalPoint(initCamFocal);
             renderer->GetActiveCamera()->GetViewUp(initCamUp);
             initCamSaved = true;
         } else {
-            /* 没有模型时回退到默认视角 */
             renderer->ResetCamera();
         }
     }
 
+    /* ================================================================
+     * 手柄交互状态（局部变量，生命周期与渲染循环相同）
+     *
+     * 射线拾取方案：
+     *   每帧通过 GetControllerPose() 获取右手柄的世界坐标和朝向，
+     *   沿射线方向投射固定长度（rayLength），终点作为 pick 目标。
+     *   用 vtkPropPicker::Pick3DRay() 做三维射线与场景的相交测试，
+     *   命中即返回对应的 vtkActor。
+     *
+     * 拖动方案：
+     *   Trigger 按下 → 记录 hitPoint 相对于 actor 原点的偏移 dragOffset[]
+     *                   和手柄当前位置 lastControllerPos[]。
+     *   Trigger 持续 → 每帧计算手柄位移增量，直接叠加到 actor->SetPosition()。
+     *                   用增量方案而非绝对坐标，保证手柄抖动不会导致 actor 跳跃。
+     *   Trigger 释放 → 清除拖动状态，保留选中高亮。
+     *
+     * 按键映射（HTC Vive / Index）：
+     *   Trigger（扳机）  → 选中 / 开始拖动
+     *   Grip（握持键）   → 释放拖动 / 取消选中
+     *   Trackpad 上      → 可见性切换（选中状态下）
+     *   Trackpad 下      → Shrink 滤镜切换
+     * ================================================================ */
+
+    /* 用于射线拾取的 3D picker */
+    vtkNew<vtkPropPicker> picker3D;
+
+    /* 手柄按键电平（边沿检测，避免持续触发）*/
+    bool triggerWasPressed = false;  /* 上一帧扳机是否按下 */
+    bool gripWasPressed    = false;  /* 上一帧握持键是否按下 */
+    bool padUpWasPressed   = false;  /* 上一帧 trackpad 上方向 */
+    bool padDownWasPressed = false;  /* 上一帧 trackpad 下方向 */
+
     /* ---- 主渲染循环 ---- */
     while (!isInterruptionRequested()) {
 
-        /* 1. 批量取出命令队列（swap避免持锁时间过长）*/
-        mutex.lock();
-        QQueue<VRCmd> localQueue;
-        localQueue.swap(commandQueue);
-        mutex.unlock();
-
-        /* 2. 处理命令 */
-        while (!localQueue.isEmpty()) {
-            processCommandVR(localQueue.dequeue(), renderer.Get());
+        /* 1. 处理 GUI 命令队列 */
+        {
+            mutex.lock();
+            QQueue<VRCmd> localQueue;
+            localQueue.swap(commandQueue);
+            mutex.unlock();
+            while (!localQueue.isEmpty())
+                processCommandVR(localQueue.dequeue(), renderer.Get());
         }
 
-        /* 3. 处理动态添加的Actor */
+        /* 2. 处理动态添加的 Actor */
         processPendingActorsVR(renderer.Get());
 
-        /* 4. 旋转动画：模型绕 Y 轴旋转（跳过地板 Actor）*/
+        /* 3. 旋转动画 */
         if (isRotating) {
             rotationAngle += 0.5;
             if (rotationAngle >= 360.0) rotationAngle -= 360.0;
-            for (int i = 0; i < actorList.size(); ++i) {
-                if (actorList[i]) {
+            for (int i = 0; i < actorList.size(); ++i)
+                if (actorList[i])
                     actorList[i]->SetOrientation(0, rotationAngle, 0);
+        }
+
+        /* 4. 渲染一帧 + 泵送 OpenVR 事件 */
+        renderWindow->Render();
+        interactor->DoOneEvent(renderWindow.Get(), renderer.Get());
+
+        /* ============================================================
+         * 5. 手柄射线拾取 + 拖动
+         *
+         * vtkOpenVRRenderWindow::GetTrackedDeviceIndexForRole() 返回
+         * SteamVR 分配给右手/左手的设备索引，再由
+         * GetTrackedDevicePose() 拿到 4×4 变换矩阵。
+         * 矩阵第4列（平移分量）= 手柄世界坐标；
+         * 矩阵第3列（Z轴，即手柄正前方）= 射线方向。
+         * ============================================================ */
+
+        /* 获取右手柄设备索引（优先右手，不可用时换左手）*/
+        vr::IVRSystem* vrSys = vr::VRSystem();
+        if (!vrSys) continue;  /* OpenVR session 丢失则跳过本帧 */
+
+        vr::TrackedDeviceIndex_t ctrlIdx =
+            vrSys->GetTrackedDeviceIndexForControllerRole(
+                vr::TrackedControllerRole_RightHand);
+        if (ctrlIdx == vr::k_unTrackedDeviceIndexInvalid) {
+            /* 右手不可用，尝试左手 */
+            ctrlIdx = vrSys->GetTrackedDeviceIndexForControllerRole(
+                vr::TrackedControllerRole_LeftHand);
+        }
+        if (ctrlIdx == vr::k_unTrackedDeviceIndexInvalid) continue;
+
+        /* 读取手柄姿态（世界空间，单位：米）*/
+        vr::TrackedDevicePose_t pose;
+        vrSys->GetDeviceToAbsoluteTrackingPose(
+            vr::TrackingUniverseStanding, 0.0f, &pose, 1);
+        /* 注意：GetDeviceToAbsoluteTrackingPose 的第4参数是 unTrackedDeviceIndexCount，
+         * 这里只请求1个 pose（索引0），实际上我们需要第 ctrlIdx 个设备的 pose，
+         * 改用批量接口获取所有设备 */
+        vr::TrackedDevicePose_t allPoses[vr::k_unMaxTrackedDeviceCount];
+        vrSys->GetDeviceToAbsoluteTrackingPose(
+            vr::TrackingUniverseStanding, 0.0f,
+            allPoses, vr::k_unMaxTrackedDeviceCount);
+
+        const vr::TrackedDevicePose_t& ctrlPose = allPoses[ctrlIdx];
+        if (!ctrlPose.bPoseIsValid) continue;
+
+        /* 从 OpenVR 行矩阵（3×4）中提取手柄位置和射线方向
+         * OpenVR 矩阵布局：m[row][col]
+         *   位置 = 第3列（col=3）
+         *   射线方向 = 第2列取反（col=2，指向手柄前方需取反因为 OpenVR Z 朝后）*/
+        const vr::HmdMatrix34_t& mat = ctrlPose.mDeviceToAbsoluteTracking;
+
+        /* VTK 使用 Y-up 右手坐标系，OpenVR 也是 Y-up 右手系，单位换算：
+         * VTK 场景通常用毫米或任意单位，而 OpenVR 用米。
+         * 我们的模型已经在 setupFloor 中做了单位适配，这里直接使用原始值。
+         * 若模型尺寸很大（STL单位为mm），需要乘以适当比例因子。
+         * 为兼容各种尺寸的模型，先用原始米制坐标做射线，再用场景包围盒做缩放。 */
+
+        /* 计算场景缩放因子：让射线坐标与模型坐标系一致
+         * 方法：取所有 actor 的包围盒对角线长度 / 典型VR臂展(~1.5m)
+         * 若模型很小（< 2 单位），scale = 1；若很大（> 1000），按比例放大 */
+        double sceneScale = 1.0;
+        {
+            double sb[6] = {0,0,0,0,0,0};
+            bool hasSB = false;
+            vtkActorCollection* ac2 = renderer->GetActors();
+            ac2->InitTraversal();
+            while (vtkActor* aa = ac2->GetNextActor()) {
+                double bb[6]; aa->GetBounds(bb);
+                if (bb[0] > bb[1]) continue;
+                if (!hasSB) { for(int i=0;i<6;++i) sb[i]=bb[i]; hasSB=true; }
+                else {
+                    if(bb[0]<sb[0])sb[0]=bb[0]; if(bb[1]>sb[1])sb[1]=bb[1];
+                    if(bb[2]<sb[2])sb[2]=bb[2]; if(bb[3]>sb[3])sb[3]=bb[3];
+                    if(bb[4]<sb[4])sb[4]=bb[4]; if(bb[5]>sb[5])sb[5]=bb[5];
                 }
+            }
+            if (hasSB) {
+                double diagLen = std::sqrt(
+                    (sb[1]-sb[0])*(sb[1]-sb[0]) +
+                    (sb[3]-sb[2])*(sb[3]-sb[2]) +
+                    (sb[5]-sb[4])*(sb[5]-sb[4]));
+                /* 典型 VR 场景对角约 3m；若模型对角 > 10，认为单位是 mm，scale=1000 */
+                if (diagLen > 10.0) sceneScale = diagLen / 3.0;
             }
         }
 
-        /* 5. 渲染一帧 + 处理手柄交互事件 */
-        renderWindow->Render();
-        interactor->DoOneEvent(renderWindow.Get(), renderer.Get());
+        /* 手柄世界坐标（米 → 场景单位）*/
+        double ctrlX = (double)mat.m[0][3] * sceneScale;
+        double ctrlY = (double)mat.m[1][3] * sceneScale;
+        double ctrlZ = (double)mat.m[2][3] * sceneScale;
+
+        /* 射线方向：手柄 -Z 轴（OpenVR 约定手柄指向自身 -Z）*/
+        double rayDX = -(double)mat.m[0][2];
+        double rayDY = -(double)mat.m[1][2];
+        double rayDZ = -(double)mat.m[2][2];
+        /* 归一化 */
+        double rayLen = std::sqrt(rayDX*rayDX + rayDY*rayDY + rayDZ*rayDZ);
+        if (rayLen < 1e-9) continue;
+        rayDX /= rayLen; rayDY /= rayLen; rayDZ /= rayLen;
+
+        /* 射线长度 = 场景对角的 2 倍，确保能覆盖整个场景 */
+        const double RAY_LENGTH = sceneScale * 6.0;
+        double rayEndX = ctrlX + rayDX * RAY_LENGTH;
+        double rayEndY = ctrlY + rayDY * RAY_LENGTH;
+        double rayEndZ = ctrlZ + rayDZ * RAY_LENGTH;
+
+        /* ---- 读取手柄按键状态 ---- */
+        vr::VRControllerState_t ctrlState;
+        vrSys->GetControllerState(ctrlIdx, &ctrlState, sizeof(ctrlState));
+
+        /* Trigger：axis 0，value > 0.5 视为按下 */
+        bool triggerPressed = (ctrlState.rAxis[0].x > 0.5f);
+
+        /* Grip button：ButtonMask */
+        bool gripPressed = (ctrlState.ulButtonPressed &
+                            vr::ButtonMaskFromId(vr::k_EButton_Grip)) != 0;
+
+        /* Trackpad：axis 1，y > 0.5 = 上，y < -0.5 = 下 */
+        bool padUpPressed   = (ctrlState.rAxis[1].y >  0.5f);
+        bool padDownPressed = (ctrlState.rAxis[1].y < -0.5f);
+
+        /* ---- Trigger 上升沿：射线拾取，开始拖动 ---- */
+        if (triggerPressed && !triggerWasPressed) {
+
+            /* 三维射线与场景求交 */
+            double p0[3] = { ctrlX, ctrlY, ctrlZ };
+            double p1[3] = { rayEndX, rayEndY, rayEndZ };
+            picker3D->Pick3DRay(p0, p1, renderer.Get());
+            vtkActor* hit = vtkActor::SafeDownCast(picker3D->GetProp3D());
+
+            /* 判断命中的是哪个 actor */
+            int hitIdx = -1;
+            if (hit) {
+                for (int i = 0; i < actorList.size(); ++i) {
+                    if (actorList[i] == hit) { hitIdx = i; break; }
+                }
+            }
+
+            if (hitIdx >= 0) {
+                /* 取消之前的选中高亮 */
+                if (selectedActorIndex >= 0 && selectedActorIndex != hitIdx)
+                    highlightActor(selectedActorIndex, false);
+
+                /* 选中新 actor */
+                selectedActorIndex = hitIdx;
+                highlightActor(hitIdx, true);
+
+                /* 记录拖动起始状态 */
+                isDragging      = true;
+                dragActorIndex  = hitIdx;
+
+                double* actorPos = actorList[hitIdx]->GetPosition();
+                double  pickPos[3];
+                picker3D->GetPickPosition(pickPos);
+
+                /* dragOffset = actor原点 - 拾取点（保持手与零件的相对位置不变）*/
+                dragOffset[0] = actorPos[0] - pickPos[0];
+                dragOffset[1] = actorPos[1] - pickPos[1];
+                dragOffset[2] = actorPos[2] - pickPos[2];
+
+                lastControllerPos[0] = ctrlX;
+                lastControllerPos[1] = ctrlY;
+                lastControllerPos[2] = ctrlZ;
+
+                /* 通知 GUI 状态栏 */
+                QString name = (hitIdx < actorNames.size())
+                               ? actorNames[hitIdx]
+                               : QString("Actor %1").arg(hitIdx);
+                emit vrActorSelected(hitIdx, name);
+
+            } else {
+                /* 点中空气：取消选中 */
+                if (selectedActorIndex >= 0) {
+                    highlightActor(selectedActorIndex, false);
+                    selectedActorIndex = -1;
+                    emit vrActorSelected(-1, "");
+                }
+                isDragging = false;
+            }
+        }
+
+        /* ---- Trigger 持续按下：执行拖动（增量位移）---- */
+        if (triggerPressed && isDragging && dragActorIndex >= 0
+                && dragActorIndex < actorList.size()
+                && actorList[dragActorIndex]) {
+
+            double dx = ctrlX - lastControllerPos[0];
+            double dy = ctrlY - lastControllerPos[1];
+            double dz = ctrlZ - lastControllerPos[2];
+
+            double* cur = actorList[dragActorIndex]->GetPosition();
+            actorList[dragActorIndex]->SetPosition(
+                cur[0] + dx,
+                cur[1] + dy,
+                cur[2] + dz);
+
+            lastControllerPos[0] = ctrlX;
+            lastControllerPos[1] = ctrlY;
+            lastControllerPos[2] = ctrlZ;
+        }
+
+        /* ---- Trigger 下降沿：结束拖动（保留选中高亮）---- */
+        if (!triggerPressed && triggerWasPressed) {
+            isDragging     = false;
+            dragActorIndex = -1;
+        }
+
+        /* ---- Grip 上升沿：取消选中并释放拖动 ---- */
+        if (gripPressed && !gripWasPressed) {
+            isDragging     = false;
+            dragActorIndex = -1;
+            if (selectedActorIndex >= 0) {
+                highlightActor(selectedActorIndex, false);
+                selectedActorIndex = -1;
+                emit vrActorSelected(-1, "");
+            }
+        }
+
+        /* ---- Trackpad 上升沿（上方向）：切换可见性 ---- */
+        if (padUpPressed && !padUpWasPressed && selectedActorIndex >= 0) {
+            int si = selectedActorIndex;
+            if (actorList[si]) {
+                bool vis = actorList[si]->GetVisibility();
+                actorList[si]->SetVisibility(!vis);
+            }
+        }
+
+        /* ---- Trackpad 上升沿（下方向）：切换 Shrink 滤镜 ---- */
+        if (padDownPressed && !padDownWasPressed && selectedActorIndex >= 0) {
+            int si = selectedActorIndex;
+            if (si < shrinkState.size()) {
+                shrinkState[si] = !shrinkState[si];
+                rebuildPipeline(si);
+            }
+        }
+
+        /* 保存本帧按键状态供下一帧做边沿检测 */
+        triggerWasPressed = triggerPressed;
+        gripWasPressed    = gripPressed;
+        padUpWasPressed   = padUpPressed;
+        padDownWasPressed = padDownPressed;
     }
 
-    /* 清理：终止交互器并释放渲染窗口资源 */
+    /* 清理 */
+    isDragging            = false;
+    dragActorIndex        = -1;
     interactor->TerminateApp();
     renderWindow->Finalize();
 }

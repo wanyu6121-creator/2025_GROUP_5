@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.16)
 
 project(worksheet6 VERSION 0.1 LANGUAGES CXX)
 
+# 禁用 Vulkan（未安装 Vulkan SDK，避免 WrapVulkanHeaders 警告）
+set(VTK_USE_VULKAN OFF CACHE BOOL "" FORCE)
+set(VTK_ENABLE_VR_SUPPORT ON CACHE BOOL "" FORCE)
+
 # 【修改】查找VTK时需要明确指定OpenVR组件
 find_package(VTK REQUIRED COMPONENTS
     CommonCore
@@ -84,11 +88,14 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(worksheet6)
 endif()
 
-# 复制VR绑定文件到构建目录（原有配置，保持不变）
+# 复制VR绑定文件到构建目录
 add_custom_target(VRBindings)
 add_custom_command(TARGET VRBindings PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E
     copy_directory ${CMAKE_SOURCE_DIR}/vrbindings ${CMAKE_BINARY_DIR}/vrbindings)
+
+# 确保 worksheet6 构建前自动复制 vrbindings
+add_dependencies(worksheet6 VRBindings)
 
 # 【新增】自动运行vtk_module_autoinit，解决VTK模块注册问题
 vtk_module_autoinit(
