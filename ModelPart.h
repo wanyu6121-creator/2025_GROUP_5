@@ -2,7 +2,13 @@
  *
  *   EEEE2076 - Software Engineering & VR Project
  *
- *   Template for model parts that will be added as treeview items
+ *   Template for model parts that will be added as treeview items.
+ *   Supports five independently toggleable VTK filters:
+ *     1. Clip      – cuts geometry at x=0
+ *     2. Shrink    – pulls cells toward their centroid
+ *     3. Smooth    – softens sharp edges (Laplacian smoothing)
+ *     4. Decimate  – reduces polygon count
+ *     5. Elevation – colours geometry by height using a lookup table
  *
  *   P Evans 2022
  */
@@ -20,157 +26,181 @@
 #include <vtkSTLReader.h>
 #include <vtkColor.h>
 
-/* 滤镜头文件 */
+/* Filter includes */
 #include <vtkClipDataSet.h>
 #include <vtkShrinkFilter.h>
+#include <vtkSmoothPolyDataFilter.h>
+#include <vtkDecimatePro.h>
+#include <vtkElevationFilter.h>
 #include <vtkPlane.h>
 #include <vtkPolyDataMapper.h>
 #include <vtkDataSetMapper.h>
+#include <vtkLookupTable.h>
+#include <vtkCleanPolyData.h>
+#include <vtkGeometryFilter.h>
 
 class ModelPart {
 public:
-    /** 构造函数
-     * @param data   节点属性列表（名称、可见性等）
-     * @param parent 父节点指针
+    /** Constructor
+     * @param data   node attribute list (name, visibility, RGB etc.)
+     * @param parent parent node pointer
      */
     ModelPart(const QList<QVariant>& data, ModelPart* parent = nullptr);
 
-    /** 析构函数，释放所有子节点 */
+    /** Destructor — recursively frees all child nodes */
     ~ModelPart();
 
-    /** 添加子节点
-     * @param item 子节点指针（已用new分配）
+    /** Add a child node.
+     * @param item child pointer (must be heap-allocated)
      */
     void appendChild(ModelPart* item);
 
-    /** 移除并删除指定行的子节点
-     *
-     * 从 m_childItems 中取出第 row 个子节点并 delete 之。
-     * 调用方负责事先通知 QAbstractItemModel（beginRemoveRows/endRemoveRows）。
-     *
-     * @param row 要移除的子节点行号（0-based）
+    /** Remove and delete the child at the given row.
+     * Caller is responsible for calling beginRemoveRows/endRemoveRows first.
+     * @param row zero-based index of the child to remove
      */
     void removeChild(int row);
 
-    /** 获取指定行的子节点
-     * @param row 行索引
-     * @return 子节点指针，越界返回nullptr
-     */
+    /** @return child at row, or nullptr if out of range */
     ModelPart* child(int row);
 
-    /** 返回子节点数量 @return 子节点数量 */
+    /** @return number of child nodes */
     int childCount() const;
 
-    /** 返回列数 @return 列数 */
+    /** @return number of data columns */
     int columnCount() const;
 
-    /** 返回指定列的数据
-     * @param column 列索引
-     * @return QVariant类型的数据
-     */
+    /** @return data for the given column as a QVariant */
     QVariant data(int column) const;
 
-    /** 设置指定列的数据
-     * @param column 列索引
-     * @param value  要设置的值
+    /** Set data for a column.
+     * @param column column index
+     * @param value  value to set
      */
     void set(int column, const QVariant& value);
 
-    /** 返回父节点指针 @return 父节点指针 */
+    /** @return pointer to parent node */
     ModelPart* parentItem();
 
-    /** 返回本节点相对于父节点的行索引 @return 行索引 */
+    /** @return row index of this node relative to its parent */
     int row() const;
 
-    /** 设置零件颜色（RGB 0-255）
-     * 颜色直接写入共享Property，VR Actor自动同步。
-     * @param R 红色分量
-     * @param G 绿色分量
-     * @param B 蓝色分量
+    /** Set RGB colour (0-255). Writes directly to the shared vtkProperty
+     *  so VR actors sharing the property update automatically.
+     * @param R red channel
+     * @param G green channel
+     * @param B blue channel
      */
     void setColour(const unsigned char R, const unsigned char G, const unsigned char B);
 
-    unsigned char getColourR(); /**< @return 红色分量 0-255 */
-    unsigned char getColourG(); /**< @return 绿色分量 0-255 */
-    unsigned char getColourB(); /**< @return 蓝色分量 0-255 */
+    unsigned char getColourR(); /**< @return red channel 0-255 */
+    unsigned char getColourG(); /**< @return green channel 0-255 */
+    unsigned char getColourB(); /**< @return blue channel 0-255 */
 
-    /** 设置可见性（仅更新GUI侧Actor；VR侧通过命令队列同步）
-     * @param isVisible true表示可见
+    /** Set visibility. Updates the GUI actor directly.
+     * @param isVisible true to show, false to hide
      */
     void setVisible(bool isVisible);
 
-    /** 获取可见性 @return true表示可见 */
+    /** @return true if part is currently visible */
     bool visible();
 
-    /** 加载STL文件，创建完整VTK pipeline（包含滤镜占位）
-     * @param fileName STL文件完整路径
+    /** Load an STL file and build the full VTK pipeline.
+     *  All five filter objects are created here regardless of their
+     *  initial state; updatePipeline() then wires only the active ones.
+     * @param fileName full path to the STL file
      */
     void loadSTL(QString fileName);
 
-    /** 获取GUI侧Actor（用于QVtkOpenGLNativeWidget渲染）
-     * @return GUI Actor智能指针，未加载STL时返回nullptr
-     */
+    /** @return GUI-side actor, or nullptr if loadSTL has not been called */
     vtkSmartPointer<vtkActor> getActor();
 
-    /** 获取STL读取器指针（供VRRenderThread注册，实现过滤器同步）
-     * @return STLReader裸指针，未加载STL时返回nullptr
-     */
+    /** @return raw pointer to the STLReader (for VRRenderThread pipeline use) */
     vtkSTLReader* getReader() { return file.Get(); }
 
-    /** 为VR创建独立的新Actor
-     *
-     *  为同一个STLReader创建新的Mapper和Actor，
-     *  通过SetProperty共享属性，颜色修改自动同步到VR。
-     *
-     *  注意：此函数只创建actor并设置好初始pipeline；
-     *  后续过滤器变化通过 VRRenderThread::issueCommand(CMD_APPLY_FILTER)
-     *  通知VR线程调用 rebuildPipeline() 重建。
-     *
-     *  @return 新Actor裸指针（调用方负责生命周期），
-     *          未加载STL时返回nullptr
+    /** Create a new independent actor for VR rendering.
+     *  Shares the vtkProperty with the GUI actor so colour changes
+     *  are reflected in VR automatically without extra commands.
+     * @return new vtkActor* (caller owns lifetime), nullptr if not loaded
      */
     vtkActor* getNewActor();
 
-    /** 启用或禁用裁剪滤镜（GUI侧）
-     *  @param enabled true启用，false禁用
+    /* ---- Filter toggles ---- */
+
+    /** Enable or disable the clip filter (cuts at x=0 along -x normal).
+     * @param enabled true to apply
      */
     void setClip(bool enabled);
 
-    /** 启用或禁用收缩滤镜（GUI侧）
-     *  @param enabled true启用，false禁用
+    /** Enable or disable the shrink filter (pulls cells toward centroid).
+     * @param enabled true to apply
      */
     void setShrink(bool enabled);
 
-    /** @return 裁剪滤镜是否当前激活 */
-    bool getClip()   { return isClipped; }
+    /** Enable or disable the smooth filter (Laplacian smoothing, 20 iterations).
+     * @param enabled true to apply
+     */
+    void setSmooth(bool enabled);
 
-    /** @return 收缩滤镜是否当前激活 */
-    bool getShrink() { return isShrunk; }
+    /** Enable or disable the decimate filter (reduces polygon count by 50%).
+     * @param enabled true to apply
+     */
+    void setDecimate(bool enabled);
+
+    /** Enable or disable the elevation filter (colours geometry by Z height).
+     * @param enabled true to apply
+     */
+    void setElevation(bool enabled);
+
+    bool getClip()      { return isClipped;    }
+    bool getShrink()    { return isShrunk;     }
+    bool getSmooth()    { return isSmoothed;   }
+    bool getDecimate()  { return isDecimated;  }
+    bool getElevation() { return isElevated;   }
+
+    /** Enable or disable the creative slice (cross-section) view.
+     * @param enabled true to apply
+     */
+    void setSlice(bool enabled) { isSliced = enabled; updatePipeline(); }
+    bool getSlice() { return isSliced; } /**< @return true if slice view active */
 
 private:
-    /** 根据当前滤镜状态重新连接GUI侧VTK pipeline
-     *  路由：STLReader → [ClipFilter] → [ShrinkFilter] → Mapper
+    /** Reconnect the GUI VTK pipeline based on current filter flags.
+     *  Active filters are chained in order:
+     *    STLReader → [Clip] → [Shrink] → [Smooth] → [Decimate] → [Elevation] → Mapper
+     *  Inactive filters are bypassed by connecting the previous stage directly.
      */
     void updatePipeline();
 
-    QList<ModelPart*>                m_childItems;   /**< 子节点列表 */
-    QList<QVariant>                  m_itemData;     /**< 节点属性数据列表 */
-    ModelPart*                       m_parentItem;   /**< 父节点指针 */
+    QList<ModelPart*>   m_childItems;  /**< child node list */
+    QList<QVariant>     m_itemData;    /**< column data for this node */
+    ModelPart*          m_parentItem;  /**< parent node pointer */
 
-    bool                             isVisible;      /**< 可见性标志 */
+    bool isVisible;  /**< visibility flag */
 
-    /* VTK pipeline对象 */
-    vtkSmartPointer<vtkSTLReader>    file;           /**< STL文件读取器（GUI和VR共享数据源）*/
-    vtkSmartPointer<vtkMapper>       mapper;         /**< GUI侧Mapper */
-    vtkSmartPointer<vtkActor>        actor;          /**< GUI侧Actor */
-    vtkColor3<unsigned char>         colour;         /**< 当前颜色（R,G,B 0-255）*/
+    /* VTK pipeline objects */
+    vtkSmartPointer<vtkSTLReader>           file;          /**< STL reader (shared with VR) */
+    vtkSmartPointer<vtkMapper>              mapper;        /**< GUI mapper (vtkDataSetMapper) */
+    vtkSmartPointer<vtkActor>              actor;          /**< GUI actor */
+    vtkColor3<unsigned char>               colour;         /**< current RGB colour */
 
-    /* 滤镜对象（在loadSTL中创建，通过flag控制是否接入pipeline）*/
-    vtkSmartPointer<vtkClipDataSet>  clipFilter;     /**< 裁剪滤镜：在x=0处截断几何体 */
-    vtkSmartPointer<vtkShrinkFilter> shrinkFilter;   /**< 收缩滤镜：将cell向质心收缩 */
+    /* Filter objects — created in loadSTL(), toggled via flags */
+    vtkSmartPointer<vtkClipDataSet>          clipFilter;     /**< cuts geometry at x=0 */
+    vtkSmartPointer<vtkShrinkFilter>         shrinkFilter;   /**< pulls cells toward centroid */
+    vtkSmartPointer<vtkSmoothPolyDataFilter> smoothFilter;   /**< Laplacian smoothing */
+    vtkSmartPointer<vtkCleanPolyData>        cleanFilter;    /**< removes duplicate points before decimation */
+    vtkSmartPointer<vtkGeometryFilter>       geometryFilter; /**< converts UnstructuredGrid to PolyData */
+    vtkSmartPointer<vtkDecimatePro>          decimateFilter; /**< polygon count reduction */
+    vtkSmartPointer<vtkElevationFilter>      elevationFilter;/**< Z-height colour mapping */
+    vtkSmartPointer<vtkLookupTable>          elevationLUT;   /**< colour table for elevation */
 
-    bool isClipped = false;  /**< 裁剪滤镜是否激活 */
-    bool isShrunk  = false;  /**< 收缩滤镜是否激活 */
+    /* Filter state flags */
+    bool isClipped   = false;
+    bool isShrunk    = false;
+    bool isSmoothed  = false;
+    bool isDecimated = false;
+    bool isElevated  = false;
+    bool isSliced    = false; /**< creative cross-section view active */
 };
 
 #endif // VIEWER_MODELPART_H

@@ -5,3 +5,5 @@ build/
 *.obj 
 CMakeCache.txt 
 CMakeFiles/ 
+.vs/
+.qtcreator/

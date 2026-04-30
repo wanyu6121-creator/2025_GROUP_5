@@ -1,3 +1,12 @@
+/**  @file mainwindow.h
+ *
+ *   EEEE2076 - Software Engineering & VR Project
+ *
+ *   Main application window. Owns the VTK renderer and ModelPartList tree.
+ *   Handles file loading, tree interaction, five filter toggles, VR control,
+ *   lighting, and node deletion.
+ */
+
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -10,6 +19,7 @@
 #include <vtkRenderer.h>
 #include <vtkGenericOpenGLRenderWindow.h>
 #include <vtkLight.h>
+#include <QCheckBox>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -20,105 +30,159 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
+    /** Constructor — sets up UI, connects signals/slots, initialises VTK renderer.
+     * @param parent parent widget, nullptr for top-level window
+     */
     MainWindow(QWidget* parent = nullptr);
+
+    /** Destructor — stops VR thread if running, frees UI. */
     ~MainWindow();
 
 public slots:
-    /* ---- 原有槽函数 ---- */
+    /* ---- File and tree ---- */
+
+    /** Slot for the Add Item button (currently shows status message). */
     void handleButton();
+
+    /** Fired when user clicks a tree item.
+     *  Updates the status bar and synchronises all five filter checkboxes
+     *  to reflect the selected part's current state.
+     */
     void handleTreeClicked();
+
+    /** File > Open File — opens a single STL file as a child of the selected node. */
     void on_actionOpen_File_triggered();
 
-    /**
-     * @brief 【加分功能A-1】批量目录加载
-     *
-     * 打开目录选择对话框，用 QDirIterator 递归遍历所有 .stl 文件，
-     * 目录结构映射为树状父子节点，文件名作为叶节点名称。
+    /** File > Open Directory — recursively loads all STL files from a directory,
+     *  mapping the folder structure to tree parent/child nodes.
      */
     void on_actionOpen_Directory_triggered();
+
+    /** Opens the OptionDialog pre-filled with the selected part's properties. */
     void handleOptionsButton();
+
+    /** Relay for the actionItem_Options right-click action. */
     void on_actionItem_Options_triggered();
+
+    /** Traverses the full ModelPartList tree and re-adds all actors to the renderer. */
     void updateRender();
+
+    /** Recursive helper for updateRender().
+     * @param index current tree node to process
+     */
     void updateRenderFromTree(const QModelIndex& index);
 
-    /** 裁剪滤镜复选框切换
-     * @param checked true表示勾选
+    /* ---- Filter toggles (GUI + VR sync) ---- */
+
+    /** Toggle the clip filter on the selected part.
+     *  Disables smooth automatically if both would be active (type mismatch).
+     * @param checked true if checkbox was just ticked
      */
     void handleClipToggle(bool checked);
 
-    /** 收缩滤镜复选框切换
-     * @param checked true表示勾选
+    /** Toggle the shrink filter on the selected part.
+     * @param checked true if checkbox was just ticked
      */
     void handleShrinkToggle(bool checked);
 
-    /* ---- VR控制槽函数 ---- */
-    /** 启动VR渲染线程（自动遍历树并注册所有Actor）*/
+    /** Toggle the smooth filter (Laplacian, 20 iterations) on the selected part.
+     *  Disables clip automatically if both would be active (type mismatch).
+     * @param checked true if checkbox was just ticked
+     */
+    void handleSmoothToggle(bool checked);
+
+    /** Toggle the decimate filter (50% polygon reduction) on the selected part.
+     * @param checked true if checkbox was just ticked
+     */
+    void handleDecimateToggle(bool checked);
+
+    /** Toggle the elevation filter (Z-height rainbow colouring) on the selected part.
+     * @param checked true if checkbox was just ticked
+     */
+    void handleElevationToggle(bool checked);
+
+    /** Toggle the slice (cross-section) creative feature on the selected part.
+     * @param checked true if checkbox was just ticked
+     */
+    void handleSliceToggle(bool checked);
+
+    /* ---- VR control ---- */
+
+    /** Start the VR render thread, registering all loaded parts as VR actors. */
     void handleStartVR();
 
-    /** 停止VR渲染线程 */
+    /** Stop the VR render thread. */
     void handleStopVR();
 
-    /** 切换VR场景旋转动画开/关 */
+    /** Toggle model rotation animation in VR. */
     void handleToggleRotate();
 
-    /** 重置VR相机视角 */
+    /** Reset the VR camera to its initial position. */
     void handleResetView();
 
-    /**
-     * @brief 【创意功能】光照强度滑块变化槽
-     *
-     * 将滑块值（0~100）映射为光照强度（0.0~2.0），
-     * 通过 CMD_SET_LIGHT_INTENSITY 命令实时同步到VR线程。
-     *
-     * @param value 滑块当前值（0~100）
+    /** Light intensity slider changed.
+     *  Maps slider value (0-100) to intensity (0.0-2.0) and updates
+     *  both the GUI renderer and the VR thread.
+     * @param value slider value 0-100
      */
     void handleLightIntensityChanged(int value);
 
-    /**
-     * @brief 【加分功能】删除选中的树节点
-     *
-     * 从 ModelPartList 移除节点，同步从GUI渲染器移除Actor，
-     * 并通过 CMD_REMOVE_ACTOR 命令通知VR线程移除对应Actor。
+    /* ---- Node management ---- */
+
+    /** Delete the selected tree node, removing its actor from the GUI renderer
+     *  and sending CMD_REMOVE_ACTOR to the VR thread.
      */
     void handleDeleteNode();
 
 signals:
+    /** Emitted to display a message in the status bar.
+     * @param message text to display
+     * @param timeout duration in ms (0 = until next message)
+     */
     void statusUpdateMessage(const QString& message, int timeout);
 
 private:
-    /** 遍历整棵树，为每个已加载STL的零件创建VR Actor并注册 */
+    /** Traverse the full tree and register all loaded parts as VR actors. */
     void populateVRActors();
 
-    /** 递归辅助：遍历树节点注册VR Actor
-     * @param index 当前节点的QModelIndex
+    /** Recursive helper for populateVRActors().
+     * @param index current tree node
      */
     void populateVRActorsFromTree(const QModelIndex& index);
 
-    /** 查找零件在vrThread中的actorIndex
-     * @param part ModelPart指针
-     * @return actorIndex，未注册返回-1
+    /** Look up a part's VR actor index.
+     * @param part ModelPart pointer to look up
+     * @return actor index, or -1 if not registered
      */
     int getActorIndex(ModelPart* part) const;
 
-    Ui::MainWindow*                               ui;
-    ModelPartList*                                partList;
-    vtkSmartPointer<vtkRenderer>                  renderer;
-    vtkSmartPointer<vtkGenericOpenGLRenderWindow>  renderWindow;
+    /** Helper: apply a filter toggle to the selected part and sync to VR.
+     *  Handles the no-selection guard, checkbox revert, updateRender(), and
+     *  VR command issue in one place.
+     * @param checked    new checkbox state
+     * @param filterType FILTER_CLIP / FILTER_SHRINK etc. constant
+     * @param checkBox   the checkbox widget to revert if no item selected
+     * @param setFn      pointer to the ModelPart setter (e.g. &ModelPart::setClip)
+     * @param label      human-readable filter name for the status bar message
+     */
+    void applyFilterToggle(bool checked,
+                           int filterType,
+                           QCheckBox* checkBox,
+                           void (ModelPart::*setFn)(bool),
+                           const QString& label);
 
-    /** VR渲染线程实例，nullptr表示VR未运行 */
-    VRRenderThread*                               vrThread;
+    Ui::MainWindow*                              ui;
+    ModelPartList*                               partList;       /**< tree model */
+    vtkSmartPointer<vtkRenderer>                 renderer;       /**< GUI renderer */
+    vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow;  /**< Qt-linked render window */
 
-    /** 旋转动画当前状态 */
-    bool                                          isVRRotating;
+    VRRenderThread*  vrThread;      /**< VR render thread, nullptr when not running */
+    bool             isVRRotating;  /**< current rotation animation state */
 
-    /** ModelPart指针 → VR actorIndex 映射表 */
-    QMap<ModelPart*, int>                         actorIndexMap;
+    QMap<ModelPart*, int> actorIndexMap; /**< maps ModelPart* to VR actor index */
 
-    /** GUI侧主光源（Key Light）——受滑块控制 */
-    vtkSmartPointer<vtkLight>                     guiKeyLight;
-
-    /** GUI侧补光（Fill Light）——强度固定为主光的40% */
-    vtkSmartPointer<vtkLight>                     guiFillLight;
+    vtkSmartPointer<vtkLight> guiKeyLight;  /**< main GUI light (slider-controlled) */
+    vtkSmartPointer<vtkLight> guiFillLight; /**< fill GUI light (40% of key) */
 };
 
 #endif // MAINWINDOW_H
