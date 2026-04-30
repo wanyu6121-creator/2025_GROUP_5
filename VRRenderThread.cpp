@@ -292,6 +292,18 @@ void VRRenderThread::runVRMode()
     renderWindow->Initialize();
     interactor->Initialize();
 
+    /* ---- 手柄交互样式设置 ----
+     * vtkOpenVRInteractorStyle 提供开箱即用的手柄交互：
+     *   - Trigger（扳机）：选中并拖动场景中的 Actor
+     *   - Grip（侧键）：抓取并移动整个场景
+     *   - Trackpad/Thumbstick：移动（飞行导航）
+     * 必须显式创建并绑定，否则手柄事件不会传递给场景。 */
+    vtkNew<vtkOpenVRInteractorStyle> style;
+    interactor->SetInteractorStyle(style);
+
+    /* 启用手柄射线（controller ray）显示，方便用户看到指向 */
+    style->ShowRayOn();
+
     /* ---- VR相机初始化：让模型近在眼前 ----
      * ResetCamera() 会把模型推到很远处以适应视口，VR里看起来很小。
      * 改为手动计算：取模型包围盒，把相机放在模型正前方 1~1.5 倍模型尺寸处，

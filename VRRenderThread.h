@@ -44,6 +44,7 @@
 #include <vtkOpenVRRenderWindow.h>
 #include <vtkOpenVRRenderWindowInteractor.h>
 #include <vtkOpenVRCamera.h>
+#include <vtkOpenVRInteractorStyle.h>
 
 /* OpenVR SDK头文件（用于检测头显是否连接）*/
 #include <openvr.h>
