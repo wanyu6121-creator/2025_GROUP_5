@@ -204,10 +204,12 @@ MainWindow::MainWindow(QWidget* parent)
     ui->treeView->addAction(ui->actionToggleClip);
     connect(ui->actionToggleClip, &QAction::triggered, this, [this]() {
         QModelIndex index = ui->treeView->selectionModel()->currentIndex();
-        if (!index.isValid()) return;
+        if (!index.isValid()) {
+            emit statusUpdateMessage("⚠ Select a part first to toggle Clip!", 3000);
+            return;
+        }
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         bool nowClipped = !part->getClip();
-        /* 递归设置选中节点及子节点的 clip 状态 */
         std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
             if (!p) return;
             p->setClip(en);
@@ -224,7 +226,10 @@ MainWindow::MainWindow(QWidget* parent)
     ui->treeView->addAction(ui->actionToggleShrink);
     connect(ui->actionToggleShrink, &QAction::triggered, this, [this]() {
         QModelIndex index = ui->treeView->selectionModel()->currentIndex();
-        if (!index.isValid()) return;
+        if (!index.isValid()) {
+            emit statusUpdateMessage("⚠ Select a part first to toggle Shrink!", 3000);
+            return;
+        }
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         bool nowShrunk = !part->getShrink();
         std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
@@ -243,7 +248,10 @@ MainWindow::MainWindow(QWidget* parent)
     ui->treeView->addAction(ui->actionToggleSmooth);
     connect(ui->actionToggleSmooth, &QAction::triggered, this, [this]() {
         QModelIndex index = ui->treeView->selectionModel()->currentIndex();
-        if (!index.isValid()) return;
+        if (!index.isValid()) {
+            emit statusUpdateMessage("⚠ Select a part first to toggle Smooth!", 3000);
+            return;
+        }
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         bool now = !part->getSmooth();
         std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
@@ -262,7 +270,10 @@ MainWindow::MainWindow(QWidget* parent)
     ui->treeView->addAction(ui->actionToggleDecimate);
     connect(ui->actionToggleDecimate, &QAction::triggered, this, [this]() {
         QModelIndex index = ui->treeView->selectionModel()->currentIndex();
-        if (!index.isValid()) return;
+        if (!index.isValid()) {
+            emit statusUpdateMessage("⚠ Select a part first to toggle Decimate!", 3000);
+            return;
+        }
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         bool now = !part->getDecimate();
         std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
@@ -281,7 +292,10 @@ MainWindow::MainWindow(QWidget* parent)
     ui->treeView->addAction(ui->actionToggleElevation);
     connect(ui->actionToggleElevation, &QAction::triggered, this, [this]() {
         QModelIndex index = ui->treeView->selectionModel()->currentIndex();
-        if (!index.isValid()) return;
+        if (!index.isValid()) {
+            emit statusUpdateMessage("⚠ Select a part first to toggle Elevation!", 3000);
+            return;
+        }
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         bool now = !part->getElevation();
         std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
@@ -378,6 +392,10 @@ MainWindow::MainWindow(QWidget* parent)
     guiFillLight->SetSpecularColor(0.5, 0.5, 0.5);
     guiFillLight->SetIntensity(0.32);
     renderer->AddLight(guiFillLight);
+
+    /* ---- 状态栏连接：把 statusUpdateMessage 信号绑到 statusbar->showMessage ---- */
+    connect(this, &MainWindow::statusUpdateMessage,
+            ui->statusbar, &QStatusBar::showMessage);
 
     renderWindow->Render();
 }

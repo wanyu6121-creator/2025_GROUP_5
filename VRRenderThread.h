@@ -44,7 +44,6 @@
 #include <vtkOpenVRRenderWindow.h>
 #include <vtkOpenVRRenderWindowInteractor.h>
 #include <vtkOpenVRCamera.h>
-#include <vtkOpenVRInteractorStyle.h>
 
 /* OpenVR SDK头文件（用于检测头显是否连接）*/
 #include <openvr.h>
@@ -307,6 +306,12 @@ private:
     QList<QString>   actorNames;          /**< 各 actor 对应零件名称 */
     double           savedColor[3];       /**< 选中前的原始颜色（用于取消高亮恢复）*/
     double           rotationAngle;       /**< 旋转动画累计角度（度）*/
+
+    /* ---- 手柄拖动状态（VR模式）---- */
+    bool             isDragging;          /**< 当前是否正在拖动 actor */
+    int              dragActorIndex;      /**< 正在拖动的 actor 索引，-1=无 */
+    double           dragOffset[3];       /**< 拾取点相对于 actor 原点的偏移，保持手感一致 */
+    double           lastControllerPos[3];/**< 上一帧手柄位置，用于计算位移增量 */
 
     /* 初始相机参数（Reset View 时恢复）*/
     double           initCamPos[3];       /**< 初始相机位置 */
