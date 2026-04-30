@@ -632,17 +632,44 @@ void MainWindow::handleButton()
 void MainWindow::handleTreeClicked()
 {
     QModelIndex index = ui->treeView->currentIndex();
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-    QString text = selectedPart->data(0).toString();
-    emit statusUpdateMessage(QString("The selected item is: ") + text, 0);
+    if (!index.isValid()) return;
 
-    /* 更新复选框以反映当前选中零件的滤镜状态 */
+    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+    QString name = selectedPart->data(0).toString();
+
+    /* 同步所有5个滤镜 checkbox，反映选中零件当前状态 */
     ui->checkBoxClip->blockSignals(true);
     ui->checkBoxShrink->blockSignals(true);
+    ui->checkBoxSmooth->blockSignals(true);
+    ui->checkBoxDecimate->blockSignals(true);
+    ui->checkBoxElevation->blockSignals(true);
+
     ui->checkBoxClip->setChecked(selectedPart->getClip());
     ui->checkBoxShrink->setChecked(selectedPart->getShrink());
+    ui->checkBoxSmooth->setChecked(selectedPart->getSmooth());
+    ui->checkBoxDecimate->setChecked(selectedPart->getDecimate());
+    ui->checkBoxElevation->setChecked(selectedPart->getElevation());
+
     ui->checkBoxClip->blockSignals(false);
     ui->checkBoxShrink->blockSignals(false);
+    ui->checkBoxSmooth->blockSignals(false);
+    ui->checkBoxDecimate->blockSignals(false);
+    ui->checkBoxElevation->blockSignals(false);
+
+    /* 状态栏显示：零件名 + 可见性 + 当前激活的滤镜 */
+    QStringList activeFilters;
+    if (selectedPart->getClip())      activeFilters << "Clip";
+    if (selectedPart->getShrink())    activeFilters << "Shrink";
+    if (selectedPart->getSmooth())    activeFilters << "Smooth";
+    if (selectedPart->getDecimate())  activeFilters << "Decimate";
+    if (selectedPart->getElevation()) activeFilters << "Elevation";
+
+    QString filterStr = activeFilters.isEmpty() ? "none" : activeFilters.join(", ");
+    QString visStr    = selectedPart->visible() ? "Visible" : "Hidden";
+
+    emit statusUpdateMessage(
+        QString("Selected: %1  |  %2  |  Filters: %3")
+            .arg(name).arg(visStr).arg(filterStr), 0);
 }
 
 void MainWindow::on_actionOpen_File_triggered()
@@ -718,17 +745,21 @@ void MainWindow::handleOptionsButton()
     );
 
     if (dialog.exec() == QDialog::Accepted) {
+        QString oldName    = selectedPart->data(0).toString();
+        bool    oldVisible = selectedPart->visible();
+        int     oldR       = selectedPart->getColourR();
+        int     oldG       = selectedPart->getColourG();
+        int     oldB       = selectedPart->getColourB();
+
         selectedPart->set(0, dialog.getName());
 
         bool newVisible = dialog.getIsVisible();
         selectedPart->setVisible(newVisible);
 
-        /* 颜色写入共享Property，VR Actor自动同步 */
-        selectedPart->setColour(
-            static_cast<unsigned char>(dialog.getR()),
-            static_cast<unsigned char>(dialog.getG()),
-            static_cast<unsigned char>(dialog.getB())
-        );
+        unsigned char newR = static_cast<unsigned char>(dialog.getR());
+        unsigned char newG = static_cast<unsigned char>(dialog.getG());
+        unsigned char newB = static_cast<unsigned char>(dialog.getB());
+        selectedPart->setColour(newR, newG, newB);
 
         /* 向VR线程发送可见性命令（精确定位到对应Actor）*/
         if (vrThread != nullptr && vrThread->isRunning()) {
@@ -739,9 +770,30 @@ void MainWindow::handleOptionsButton()
         }
 
         renderWindow->Render();
-        emit statusUpdateMessage("Item updated.", 0);
+
+        /* 状态栏详细反馈 */
+        QStringList changes;
+        if (dialog.getName() != oldName)
+            changes << QString("Name: %1→%2").arg(oldName).arg(dialog.getName());
+        if (newVisible != oldVisible)
+            changes << QString("Visible: %1→%2")
+                       .arg(oldVisible ? "Yes":"No")
+                       .arg(newVisible ? "Yes":"No");
+        if (newR != oldR || newG != oldG || newB != oldB)
+            changes << QString("Colour: (%1,%2,%3)→(%4,%5,%6)")
+                       .arg(oldR).arg(oldG).arg(oldB)
+                       .arg(newR).arg(newG).arg(newB);
+
+        if (changes.isEmpty())
+            emit statusUpdateMessage(
+                QString("%1: no changes made.").arg(dialog.getName()), 2000);
+        else
+            emit statusUpdateMessage(
+                QString("%1 updated — ").arg(dialog.getName()) + changes.join("  "), 0);
+
     } else {
-        emit statusUpdateMessage("Dialog cancelled.", 0);
+        emit statusUpdateMessage(
+            QString("Edit cancelled: %1").arg(selectedPart->data(0).toString()), 2000);
     }
 }
 
@@ -755,145 +807,101 @@ void MainWindow::on_actionItem_Options_triggered()
  * 递归作用于选中节点及其所有子节点
  * ================================================================ */
 
+/* ================================================================
+ * 下方 Checkbox 全局滤镜（作用于所有零件）
+ * 右键菜单对单个零件独立应用（见构造函数 lambda）
+ * ================================================================ */
+
+/* 全局递归辅助（通用版本）*/
+static void applyFilterAll(ModelPart* part, bool en,
+                           void (ModelPart::*setter)(bool))
+{
+    if (!part) return;
+    (part->*setter)(en);
+    for (int i = 0; i < part->childCount(); ++i)
+        applyFilterAll(part->child(i), en, setter);
+}
+
 void MainWindow::handleClipToggle(bool checked)
 {
-    /* Clip 对选中节点及其子节点独立应用（评分要求：每个零件独立）*/
-    QModelIndex index = ui->treeView->currentIndex();
-    if (index.isValid()) {
-        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
-        applyClipRecursive(part, checked);
-    } else {
-        /* 无选中时全局应用 */
-        applyClipRecursive(partList->getRootItem(), checked);
-    }
+    applyFilterAll(partList->getRootItem(), checked, &ModelPart::setClip);
     updateRender();
     renderWindow->Render();
 
-    if (vrThread != nullptr && vrThread->isRunning()) {
+    if (vrThread && vrThread->isRunning()) {
         double value = FILTER_CLIP * 10.0 + (checked ? 1.0 : 0.0);
         for (int idx : actorIndexMap.values())
             vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
     }
-
     emit statusUpdateMessage(
-        checked ? "Clip filter applied" : "Clip filter removed", 2000);
+        checked ? "Clip applied to all parts" : "Clip removed from all parts", 2000);
 }
 
 void MainWindow::handleShrinkToggle(bool checked)
 {
-    /* Shrink 对选中节点及其子节点独立应用 */
-    QModelIndex index = ui->treeView->currentIndex();
-    if (index.isValid()) {
-        ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
-        applyShrinkRecursive(part, checked);
-    } else {
-        applyShrinkRecursive(partList->getRootItem(), checked);
-    }
+    applyFilterAll(partList->getRootItem(), checked, &ModelPart::setShrink);
     updateRender();
     renderWindow->Render();
 
-    if (vrThread != nullptr && vrThread->isRunning()) {
+    if (vrThread && vrThread->isRunning()) {
         double value = FILTER_SHRINK * 10.0 + (checked ? 1.0 : 0.0);
         for (int idx : actorIndexMap.values())
             vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
     }
-
     emit statusUpdateMessage(
-        checked ? "Shrink filter applied" : "Shrink filter removed", 2000);
+        checked ? "Shrink applied to all parts" : "Shrink removed from all parts", 2000);
 }
 
 void MainWindow::handleSmoothToggle(bool checked)
 {
-    QModelIndex index = ui->treeView->currentIndex();
-
-    if (!index.isValid()) {
-        ui->checkBoxSmooth->blockSignals(true);
-        ui->checkBoxSmooth->setChecked(false);
-        ui->checkBoxSmooth->blockSignals(false);
-        emit statusUpdateMessage("No item selected — select a part first", 2000);
-        return;
+    applyFilterAll(partList->getRootItem(), checked, &ModelPart::setSmooth);
+    /* Smooth 与 Clip 不兼容，全局关闭 Clip checkbox */
+    if (checked) {
+        ui->checkBoxClip->blockSignals(true);
+        ui->checkBoxClip->setChecked(false);
+        ui->checkBoxClip->blockSignals(false);
+        applyFilterAll(partList->getRootItem(), false, &ModelPart::setClip);
     }
-
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-
-    /* setSmooth() 激活时会自动禁用 clip（类型不兼容），同步 checkbox */
-    selectedPart->setSmooth(checked);
-    ui->checkBoxClip->blockSignals(true);
-    ui->checkBoxClip->setChecked(selectedPart->getClip());
-    ui->checkBoxClip->blockSignals(false);
-
     updateRender();
     renderWindow->Render();
 
-    if (vrThread != nullptr && vrThread->isRunning()) {
-        int idx = getActorIndex(selectedPart);
+    if (vrThread && vrThread->isRunning()) {
         double value = FILTER_SMOOTH * 10.0 + (checked ? 1.0 : 0.0);
-        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        for (int idx : actorIndexMap.values())
+            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
     }
-
     emit statusUpdateMessage(
-        checked ? QString("Smooth applied to: ") + selectedPart->data(0).toString()
-                : QString("Smooth removed from: ") + selectedPart->data(0).toString(),
-        2000);
+        checked ? "Smooth applied to all parts" : "Smooth removed from all parts", 2000);
 }
 
 void MainWindow::handleDecimateToggle(bool checked)
 {
-    /* Shrink 对选中节点及其子节点独立应用 */
-    QModelIndex index = ui->treeView->currentIndex();
-
-    if (!index.isValid()) {
-        ui->checkBoxDecimate->blockSignals(true);
-        ui->checkBoxDecimate->setChecked(false);
-        ui->checkBoxDecimate->blockSignals(false);
-        emit statusUpdateMessage("No item selected — select a part first", 2000);
-        return;
-    }
-
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-    selectedPart->setDecimate(checked);
+    applyFilterAll(partList->getRootItem(), checked, &ModelPart::setDecimate);
     updateRender();
     renderWindow->Render();
 
-    if (vrThread != nullptr && vrThread->isRunning()) {
-        int idx = getActorIndex(selectedPart);
+    if (vrThread && vrThread->isRunning()) {
         double value = FILTER_DECIMATE * 10.0 + (checked ? 1.0 : 0.0);
-        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        for (int idx : actorIndexMap.values())
+            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
     }
-
     emit statusUpdateMessage(
-        checked ? QString("Decimate applied to: ") + selectedPart->data(0).toString()
-                : QString("Decimate removed from: ") + selectedPart->data(0).toString(),
-        2000);
+        checked ? "Decimate applied to all parts" : "Decimate removed from all parts", 2000);
 }
 
 void MainWindow::handleElevationToggle(bool checked)
 {
-    QModelIndex index = ui->treeView->currentIndex();
-
-    if (!index.isValid()) {
-        ui->checkBoxElevation->blockSignals(true);
-        ui->checkBoxElevation->setChecked(false);
-        ui->checkBoxElevation->blockSignals(false);
-        emit statusUpdateMessage("No item selected — select a part first", 2000);
-        return;
-    }
-
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-    selectedPart->setElevation(checked);
+    applyFilterAll(partList->getRootItem(), checked, &ModelPart::setElevation);
     updateRender();
     renderWindow->Render();
 
-    if (vrThread != nullptr && vrThread->isRunning()) {
-        int idx = getActorIndex(selectedPart);
+    if (vrThread && vrThread->isRunning()) {
         double value = FILTER_ELEVATION * 10.0 + (checked ? 1.0 : 0.0);
-        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        for (int idx : actorIndexMap.values())
+            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
     }
-
     emit statusUpdateMessage(
-        checked ? QString("Elevation applied to: ") + selectedPart->data(0).toString()
-                : QString("Elevation removed from: ") + selectedPart->data(0).toString(),
-        2000);
+        checked ? "Elevation applied to all parts" : "Elevation removed from all parts", 2000);
 }
 
 /* 创意加分：Slice 截面视图（对选中节点，全局 fallback）*/

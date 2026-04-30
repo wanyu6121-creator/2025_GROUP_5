@@ -184,7 +184,6 @@ void ModelPart::loadSTL(QString fileName)
     updatePipeline();
 }
 
-
 void ModelPart::updatePipeline()
 {
     /* Guard: pipeline objects must exist before we can connect them */
@@ -369,9 +368,6 @@ vtkActor* ModelPart::getNewActor()
     /* Share the property so colour changes in GUI propagate to VR */
     newActor->SetProperty(actor->GetProperty());
     newActor->SetVisibility(isVisible ? 1 : 0);
-    if (isClipped) {
-        newActor->GetProperty()->SetLineWidth(2.0);
-    }
 
     return newActor;
 }

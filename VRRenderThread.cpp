@@ -58,6 +58,7 @@ VRRenderThread::VRRenderThread(QObject* parent)
     , mainLightIntensity(0.8)
     , selectedActorIndex(-1)
     , rotationAngle(0.0)
+    , initCamSaved(false)
 {
     savedColor[0] = savedColor[1] = savedColor[2] = 1.0;
 }
@@ -336,6 +337,12 @@ void VRRenderThread::runVRMode()
             renderer->GetActiveCamera()->SetFocalPoint(cx, cy, cz);
             renderer->GetActiveCamera()->SetViewUp(0.0, 1.0, 0.0);
             renderer->ResetCameraClippingRange();
+
+            /* 保存初始相机参数，供 Reset View 恢复 */
+            renderer->GetActiveCamera()->GetPosition(initCamPos);
+            renderer->GetActiveCamera()->GetFocalPoint(initCamFocal);
+            renderer->GetActiveCamera()->GetViewUp(initCamUp);
+            initCamSaved = true;
         } else {
             /* 没有模型时回退到默认视角 */
             renderer->ResetCamera();
@@ -700,11 +707,13 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
         rotationAngle = 0.0;
         for (int i = 0; i < actorList.size(); ++i)
             if (actorList[i]) actorList[i]->SetOrientation(0, 0, 0);
-        if (renderer) {
-            renderer->ResetCamera();
-            renderer->GetActiveCamera()->Azimuth(30);
-            renderer->GetActiveCamera()->Elevation(30);
+        if (renderer && initCamSaved) {
+            renderer->GetActiveCamera()->SetPosition(initCamPos);
+            renderer->GetActiveCamera()->SetFocalPoint(initCamFocal);
+            renderer->GetActiveCamera()->SetViewUp(initCamUp);
             renderer->ResetCameraClippingRange();
+        } else if (renderer) {
+            renderer->ResetCamera();
         }
         break;
 
@@ -839,11 +848,13 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
         rotationAngle = 0.0;
         for (int i = 0; i < actorList.size(); ++i)
             if (actorList[i]) actorList[i]->SetOrientation(0, 0, 0);
-        if (renderer) {
-            renderer->ResetCamera();
-            renderer->GetActiveCamera()->Azimuth(30);
-            renderer->GetActiveCamera()->Elevation(30);
+        if (renderer && initCamSaved) {
+            renderer->GetActiveCamera()->SetPosition(initCamPos);
+            renderer->GetActiveCamera()->SetFocalPoint(initCamFocal);
+            renderer->GetActiveCamera()->SetViewUp(initCamUp);
             renderer->ResetCameraClippingRange();
+        } else if (renderer) {
+            renderer->ResetCamera();
         }
         break;
 
