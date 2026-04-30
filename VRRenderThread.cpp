@@ -23,6 +23,7 @@
 #include <vtkProperty.h>
 #include <vtkCamera.h>
 #include <vtkPlaneSource.h>
+#include <algorithm>
 #include <vtkPolyDataMapper.h>
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
@@ -56,6 +57,7 @@ VRRenderThread::VRRenderThread(QObject* parent)
     , isRotating(false)
     , mainLightIntensity(0.8)
     , selectedActorIndex(-1)
+    , rotationAngle(0.0)
 {
     savedColor[0] = savedColor[1] = savedColor[2] = 1.0;
 }
@@ -146,9 +148,49 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
 
     clipFilters.append(cf);
     shrinkFilters.append(sf);
-    mapperList.append(vtkSmartPointer<vtkDataSetMapper>::New()); /* 占位，未使用 */
+
+    /* ---- Smooth filter ---- */
+    vtkSmartPointer<vtkSmoothPolyDataFilter> smf = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
+    smf->SetNumberOfIterations(20);
+    smf->SetRelaxationFactor(0.1);
+    smf->FeatureEdgeSmoothingOff();
+    smf->BoundarySmoothingOn();
+    smoothFilters.append(smf);
+
+    /* ---- Decimate filter (needs clean + geometry conversion) ---- */
+    vtkSmartPointer<vtkGeometryFilter>  gf  = vtkSmartPointer<vtkGeometryFilter>::New();
+    vtkSmartPointer<vtkCleanPolyData>   clf = vtkSmartPointer<vtkCleanPolyData>::New();
+    vtkSmartPointer<vtkDecimatePro>     df  = vtkSmartPointer<vtkDecimatePro>::New();
+    df->SetTargetReduction(0.9);
+    df->PreserveTopologyOn();
+    geometryFilters.append(gf);
+    cleanFilters.append(clf);
+    decimateFilters.append(df);
+
+    /* ---- Elevation filter + LUT ---- */
+    vtkSmartPointer<vtkElevationFilter> ef = vtkSmartPointer<vtkElevationFilter>::New();
+    if (reader) {
+        reader->Update();
+        double bounds[6];
+        reader->GetOutput()->GetBounds(bounds);
+        double zMin = bounds[4], zMax = bounds[5];
+        if (zMax - zMin < 1e-6) { zMin -= 1.0; zMax += 1.0; }
+        ef->SetLowPoint(0.0, 0.0, zMin);
+        ef->SetHighPoint(0.0, 0.0, zMax);
+    }
+    vtkSmartPointer<vtkLookupTable> lut = vtkSmartPointer<vtkLookupTable>::New();
+    lut->SetNumberOfTableValues(256);
+    lut->SetHueRange(0.667, 0.0);   /* blue → red */
+    lut->Build();
+    elevationFilters.append(ef);
+    elevationLUTs.append(lut);
+
+    mapperList.append(vtkSmartPointer<vtkDataSetMapper>::New());
     clipState.append(clipOn);
     shrinkState.append(shrinkOn);
+    smoothState.append(false);
+    decimateState.append(false);
+    elevationState.append(false);
     actorNames.append("");
     actorColorIdx.append(0);
 
@@ -162,8 +204,17 @@ void VRRenderThread::clearActors()
     mapperList.clear();
     clipFilters.clear();
     shrinkFilters.clear();
+    smoothFilters.clear();
+    decimateFilters.clear();
+    elevationFilters.clear();
+    elevationLUTs.clear();
+    cleanFilters.clear();
+    geometryFilters.clear();
     clipState.clear();
     shrinkState.clear();
+    smoothState.clear();
+    decimateState.clear();
+    elevationState.clear();
     actorNames.clear();
     actorColorIdx.clear();
     selectedActorIndex = -1;
@@ -240,10 +291,56 @@ void VRRenderThread::runVRMode()
     renderWindow->Initialize();
     interactor->Initialize();
 
-    renderer->ResetCamera();
-    renderer->GetActiveCamera()->Azimuth(30);
-    renderer->GetActiveCamera()->Elevation(30);
-    renderer->ResetCameraClippingRange();
+    /* ---- VR相机初始化：让模型近在眼前 ----
+     * ResetCamera() 会把模型推到很远处以适应视口，VR里看起来很小。
+     * 改为手动计算：取模型包围盒，把相机放在模型正前方 1~1.5 倍模型尺寸处，
+     * 人进入VR时模型就在面前触手可及的位置。 */
+    {
+        double bounds[6] = {0,0,0,0,0,0};
+        bool hasBounds = false;
+        vtkActorCollection* acs = renderer->GetActors();
+        acs->InitTraversal();
+        while (vtkActor* a = acs->GetNextActor()) {
+            double b[6]; a->GetBounds(b);
+            if (b[0] > b[1]) continue;
+            if (!hasBounds) {
+                for (int i = 0; i < 6; ++i) bounds[i] = b[i];
+                hasBounds = true;
+            } else {
+                if (b[0]<bounds[0]) bounds[0]=b[0];
+                if (b[1]>bounds[1]) bounds[1]=b[1];
+                if (b[2]<bounds[2]) bounds[2]=b[2];
+                if (b[3]>bounds[3]) bounds[3]=b[3];
+                if (b[4]<bounds[4]) bounds[4]=b[4];
+                if (b[5]>bounds[5]) bounds[5]=b[5];
+            }
+        }
+
+        if (hasBounds) {
+            /* 模型中心 */
+            double cx = (bounds[0] + bounds[1]) / 2.0;
+            double cy = (bounds[2] + bounds[3]) / 2.0;
+            double cz = (bounds[4] + bounds[5]) / 2.0;
+
+            /* 模型最大尺寸（X/Y/Z中最大的一个）*/
+            double sizeX = bounds[1] - bounds[0];
+            double sizeY = bounds[3] - bounds[2];
+            double sizeZ = bounds[5] - bounds[4];
+            double maxSize = std::max({sizeX, sizeY, sizeZ});
+
+            /* 相机放在模型正前方（+Z方向）1.2倍模型尺寸处
+             * 视线水平朝向模型中心，高度与模型中心齐平 */
+            double camDist = maxSize * 1.2;
+
+            renderer->GetActiveCamera()->SetPosition(cx, cy, cz + camDist);
+            renderer->GetActiveCamera()->SetFocalPoint(cx, cy, cz);
+            renderer->GetActiveCamera()->SetViewUp(0.0, 1.0, 0.0);
+            renderer->ResetCameraClippingRange();
+        } else {
+            /* 没有模型时回退到默认视角 */
+            renderer->ResetCamera();
+        }
+    }
 
     /* ---- 主渲染循环 ---- */
     while (!isInterruptionRequested()) {
@@ -262,12 +359,14 @@ void VRRenderThread::runVRMode()
         /* 3. 处理动态添加的Actor */
         processPendingActorsVR(renderer.Get());
 
-        /* 4. 旋转动画：每帧让所有模型Actor绕世界Y轴旋转0.5度 */
+        /* 4. 旋转动画：模型绕 Y 轴旋转（跳过地板 Actor）*/
         if (isRotating) {
-            vtkActorCollection* actors = renderer->GetActors();
-            actors->InitTraversal();
-            while (vtkActor* a = actors->GetNextActor()) {
-                a->RotateY(0.5);
+            rotationAngle += 0.5;
+            if (rotationAngle >= 360.0) rotationAngle -= 360.0;
+            for (int i = 0; i < actorList.size(); ++i) {
+                if (actorList[i]) {
+                    actorList[i]->SetOrientation(0, rotationAngle, 0);
+                }
             }
         }
 
@@ -356,10 +455,12 @@ void VRRenderThread::runDesktopMode()
         processPendingActorsDesktop(renderer.Get());
 
         if (isRotating) {
-            vtkActorCollection* actors = renderer->GetActors();
-            actors->InitTraversal();
-            while (vtkActor* a = actors->GetNextActor()) {
-                a->RotateY(0.5);
+            rotationAngle += 0.5;
+            if (rotationAngle >= 360.0) rotationAngle -= 360.0;
+            for (int i = 0; i < actorList.size(); ++i) {
+                if (actorList[i]) {
+                    actorList[i]->SetOrientation(0, rotationAngle, 0);
+                }
             }
         }
 
@@ -541,8 +642,7 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
         break;
 
     case CMD_APPLY_FILTER: {
-        /* 解码：filterType * 10 + (enabled ? 1 : 0)
-         * filterType: 0=clip, 1=shrink */
+        /* 解码：filterType * 10 + (enabled ? 1 : 0) */
         int encoded    = static_cast<int>(vcmd.value + 0.5);
         int filterType = encoded / 10;
         bool enabled   = (encoded % 10) != 0;
@@ -550,9 +650,11 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
 
         if (idx < 0 || idx >= actorList.size()) break;
 
-        /* 更新状态并重建该Actor的pipeline */
-        if (filterType == FILTER_CLIP)   clipState[idx]   = enabled;
-        if (filterType == FILTER_SHRINK) shrinkState[idx] = enabled;
+        if (filterType == FILTER_CLIP)      clipState[idx]      = enabled;
+        if (filterType == FILTER_SHRINK)    shrinkState[idx]    = enabled;
+        if (filterType == FILTER_SMOOTH)    smoothState[idx]    = enabled;
+        if (filterType == FILTER_DECIMATE)  decimateState[idx]  = enabled;
+        if (filterType == FILTER_ELEVATION) elevationState[idx] = enabled;
         rebuildPipeline(idx);
         break;
     }
@@ -595,6 +697,9 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
 
     case CMD_RESET_VIEW:
         isRotating = false;
+        rotationAngle = 0.0;
+        for (int i = 0; i < actorList.size(); ++i)
+            if (actorList[i]) actorList[i]->SetOrientation(0, 0, 0);
         if (renderer) {
             renderer->ResetCamera();
             renderer->GetActiveCamera()->Azimuth(30);
@@ -634,8 +739,11 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
 
         if (idx < 0 || idx >= actorList.size()) break;
 
-        if (filterType == FILTER_CLIP)   clipState[idx]   = enabled;
-        if (filterType == FILTER_SHRINK) shrinkState[idx] = enabled;
+        if (filterType == FILTER_CLIP)      clipState[idx]      = enabled;
+        if (filterType == FILTER_SHRINK)    shrinkState[idx]    = enabled;
+        if (filterType == FILTER_SMOOTH)    smoothState[idx]    = enabled;
+        if (filterType == FILTER_DECIMATE)  decimateState[idx]  = enabled;
+        if (filterType == FILTER_ELEVATION) elevationState[idx] = enabled;
         rebuildPipeline(idx);
         break;
     }
@@ -728,6 +836,9 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
 
     case CMD_RESET_VIEW:
         isRotating = false;
+        rotationAngle = 0.0;
+        for (int i = 0; i < actorList.size(); ++i)
+            if (actorList[i]) actorList[i]->SetOrientation(0, 0, 0);
         if (renderer) {
             renderer->ResetCamera();
             renderer->GetActiveCamera()->Azimuth(30);
@@ -756,42 +867,48 @@ void VRRenderThread::rebuildPipeline(int idx)
 
     vtkActor*     actor  = actorList[idx];
     vtkSTLReader* reader = readerList[idx].Get();
-
     if (!actor || !reader) return;
 
-    /* 取出Actor当前绑定的Mapper（由 ModelPart::getNewActor() 创建）*/
-    vtkDataSetMapper* mapper =
-        vtkDataSetMapper::SafeDownCast(actor->GetMapper());
+    vtkDataSetMapper* mapper = vtkDataSetMapper::SafeDownCast(actor->GetMapper());
     if (!mapper) return;
 
-    vtkClipDataSet*  cf = clipFilters[idx].Get();
-    vtkShrinkFilter* sf = shrinkFilters[idx].Get();
+    /* Mirror ModelPart::updatePipeline():
+     * STLReader → [Clip] → [Shrink] → [Smooth] → [Decimate] → [Elevation] → Mapper */
+    vtkAlgorithmOutput* current = reader->GetOutputPort();
 
-    bool doClip   = clipState[idx];
-    bool doShrink = shrinkState[idx];
-
-    /* 根据两个flag的组合选择pipeline路由 */
-    if (doClip && doShrink) {
-        /* reader → clip → shrink → mapper */
-        cf->SetInputConnection(reader->GetOutputPort());
-        sf->SetInputConnection(cf->GetOutputPort());
-        mapper->SetInputConnection(sf->GetOutputPort());
-
-    } else if (doClip) {
-        /* reader → clip → mapper */
-        cf->SetInputConnection(reader->GetOutputPort());
-        mapper->SetInputConnection(cf->GetOutputPort());
-
-    } else if (doShrink) {
-        /* reader → shrink → mapper */
-        sf->SetInputConnection(reader->GetOutputPort());
-        mapper->SetInputConnection(sf->GetOutputPort());
-
-    } else {
-        /* reader → mapper（无滤镜）*/
-        mapper->SetInputConnection(reader->GetOutputPort());
+    if (clipState[idx]) {
+        clipFilters[idx]->SetInputConnection(current);
+        current = clipFilters[idx]->GetOutputPort();
     }
 
+    if (shrinkState[idx]) {
+        shrinkFilters[idx]->SetInputConnection(current);
+        current = shrinkFilters[idx]->GetOutputPort();
+    }
+
+    if (smoothState[idx]) {
+        smoothFilters[idx]->SetInputConnection(current);
+        current = smoothFilters[idx]->GetOutputPort();
+    }
+
+    if (decimateState[idx]) {
+        geometryFilters[idx]->SetInputConnection(current);
+        cleanFilters[idx]->SetInputConnection(geometryFilters[idx]->GetOutputPort());
+        decimateFilters[idx]->SetInputConnection(cleanFilters[idx]->GetOutputPort());
+        current = decimateFilters[idx]->GetOutputPort();
+    }
+
+    if (elevationState[idx]) {
+        elevationFilters[idx]->SetInputConnection(current);
+        current = elevationFilters[idx]->GetOutputPort();
+        mapper->SetLookupTable(elevationLUTs[idx]);
+        mapper->SetScalarRange(0.0, 1.0);
+        mapper->ScalarVisibilityOn();
+    } else {
+        mapper->ScalarVisibilityOff();
+    }
+
+    mapper->SetInputConnection(current);
     mapper->Update();
 }
 
