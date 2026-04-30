@@ -307,6 +307,12 @@ private:
     double           savedColor[3];       /**< 选中前的原始颜色（用于取消高亮恢复）*/
     double           rotationAngle;       /**< 旋转动画累计角度（度）*/
 
+    /* 初始相机参数（Reset View 时恢复）*/
+    double           initCamPos[3];       /**< 初始相机位置 */
+    double           initCamFocal[3];     /**< 初始焦点 */
+    double           initCamUp[3];        /**< 初始 ViewUp 向量 */
+    bool             initCamSaved;        /**< 是否已保存初始相机 */
+
     /* 颜色循环表（CMD_VR_SET_COLOUR 依次切换）*/
     static const int  COLOR_COUNT = 6;
     static const int  colorTable[COLOR_COUNT][3]; /**< RGB 0-255 */

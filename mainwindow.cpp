@@ -632,17 +632,44 @@ void MainWindow::handleButton()
 void MainWindow::handleTreeClicked()
 {
     QModelIndex index = ui->treeView->currentIndex();
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
-    QString text = selectedPart->data(0).toString();
-    emit statusUpdateMessage(QString("The selected item is: ") + text, 0);
+    if (!index.isValid()) return;
 
-    /* 更新复选框以反映当前选中零件的滤镜状态 */
+    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+    QString name = selectedPart->data(0).toString();
+
+    /* 同步所有5个滤镜 checkbox，反映选中零件当前状态 */
     ui->checkBoxClip->blockSignals(true);
     ui->checkBoxShrink->blockSignals(true);
+    ui->checkBoxSmooth->blockSignals(true);
+    ui->checkBoxDecimate->blockSignals(true);
+    ui->checkBoxElevation->blockSignals(true);
+
     ui->checkBoxClip->setChecked(selectedPart->getClip());
     ui->checkBoxShrink->setChecked(selectedPart->getShrink());
+    ui->checkBoxSmooth->setChecked(selectedPart->getSmooth());
+    ui->checkBoxDecimate->setChecked(selectedPart->getDecimate());
+    ui->checkBoxElevation->setChecked(selectedPart->getElevation());
+
     ui->checkBoxClip->blockSignals(false);
     ui->checkBoxShrink->blockSignals(false);
+    ui->checkBoxSmooth->blockSignals(false);
+    ui->checkBoxDecimate->blockSignals(false);
+    ui->checkBoxElevation->blockSignals(false);
+
+    /* 状态栏显示：零件名 + 可见性 + 当前激活的滤镜 */
+    QStringList activeFilters;
+    if (selectedPart->getClip())      activeFilters << "Clip";
+    if (selectedPart->getShrink())    activeFilters << "Shrink";
+    if (selectedPart->getSmooth())    activeFilters << "Smooth";
+    if (selectedPart->getDecimate())  activeFilters << "Decimate";
+    if (selectedPart->getElevation()) activeFilters << "Elevation";
+
+    QString filterStr = activeFilters.isEmpty() ? "none" : activeFilters.join(", ");
+    QString visStr    = selectedPart->visible() ? "Visible" : "Hidden";
+
+    emit statusUpdateMessage(
+        QString("Selected: %1  |  %2  |  Filters: %3")
+            .arg(name).arg(visStr).arg(filterStr), 0);
 }
 
 void MainWindow::on_actionOpen_File_triggered()
@@ -718,17 +745,21 @@ void MainWindow::handleOptionsButton()
     );
 
     if (dialog.exec() == QDialog::Accepted) {
+        QString oldName    = selectedPart->data(0).toString();
+        bool    oldVisible = selectedPart->visible();
+        int     oldR       = selectedPart->getColourR();
+        int     oldG       = selectedPart->getColourG();
+        int     oldB       = selectedPart->getColourB();
+
         selectedPart->set(0, dialog.getName());
 
         bool newVisible = dialog.getIsVisible();
         selectedPart->setVisible(newVisible);
 
-        /* 颜色写入共享Property，VR Actor自动同步 */
-        selectedPart->setColour(
-            static_cast<unsigned char>(dialog.getR()),
-            static_cast<unsigned char>(dialog.getG()),
-            static_cast<unsigned char>(dialog.getB())
-        );
+        unsigned char newR = static_cast<unsigned char>(dialog.getR());
+        unsigned char newG = static_cast<unsigned char>(dialog.getG());
+        unsigned char newB = static_cast<unsigned char>(dialog.getB());
+        selectedPart->setColour(newR, newG, newB);
 
         /* 向VR线程发送可见性命令（精确定位到对应Actor）*/
         if (vrThread != nullptr && vrThread->isRunning()) {
@@ -739,9 +770,30 @@ void MainWindow::handleOptionsButton()
         }
 
         renderWindow->Render();
-        emit statusUpdateMessage("Item updated.", 0);
+
+        /* 状态栏详细反馈 */
+        QStringList changes;
+        if (dialog.getName() != oldName)
+            changes << QString("Name: %1→%2").arg(oldName).arg(dialog.getName());
+        if (newVisible != oldVisible)
+            changes << QString("Visible: %1→%2")
+                       .arg(oldVisible ? "Yes":"No")
+                       .arg(newVisible ? "Yes":"No");
+        if (newR != oldR || newG != oldG || newB != oldB)
+            changes << QString("Colour: (%1,%2,%3)→(%4,%5,%6)")
+                       .arg(oldR).arg(oldG).arg(oldB)
+                       .arg(newR).arg(newG).arg(newB);
+
+        if (changes.isEmpty())
+            emit statusUpdateMessage(
+                QString("%1: no changes made.").arg(dialog.getName()), 2000);
+        else
+            emit statusUpdateMessage(
+                QString("%1 updated — ").arg(dialog.getName()) + changes.join("  "), 0);
+
     } else {
-        emit statusUpdateMessage("Dialog cancelled.", 0);
+        emit statusUpdateMessage(
+            QString("Edit cancelled: %1").arg(selectedPart->data(0).toString()), 2000);
     }
 }
 
