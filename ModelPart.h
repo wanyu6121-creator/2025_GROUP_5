@@ -33,7 +33,11 @@
 #include <vtkDecimatePro.h>
 #include <vtkElevationFilter.h>
 #include <vtkPlane.h>
+#include <vtkAppendPolyData.h>
+#include <vtkTubeFilter.h>
 #include <vtkPolyDataMapper.h>
+#include <vtkShrinkFilter.h>
+#include <vtkClipDataSet.h>
 #include <vtkDataSetMapper.h>
 #include <vtkLookupTable.h>
 #include <vtkCleanPolyData.h>

@@ -839,6 +839,7 @@ void MainWindow::handleSmoothToggle(bool checked)
 
 void MainWindow::handleDecimateToggle(bool checked)
 {
+    /* Shrink 对选中节点及其子节点独立应用 */
     QModelIndex index = ui->treeView->currentIndex();
 
     if (!index.isValid()) {
