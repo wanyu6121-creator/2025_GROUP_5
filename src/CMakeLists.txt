@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.16)
 
 project(worksheet6 VERSION 0.1 LANGUAGES CXX)
 
-# 禁用 Vulkan（未安装 Vulkan SDK，避免 WrapVulkanHeaders 警告）
+# Disable Vulkan (Vulkan SDK not installed; suppresses WrapVulkanHeaders warnings)
 set(VTK_USE_VULKAN OFF CACHE BOOL "" FORCE)
 set(VTK_ENABLE_VR_SUPPORT ON CACHE BOOL "" FORCE)
 
-# 【修改】查找VTK时需要明确指定OpenVR组件
+# Explicitly specify required VTK components including OpenVR
 find_package(VTK REQUIRED COMPONENTS
     CommonCore
     CommonDataModel
@@ -42,8 +42,8 @@ set(PROJECT_SOURCES
         ModelPartList.cpp
         ModelPartList.h
         icons.qrc
-        VRRenderThread.h        # 【新增】
-        VRRenderThread.cpp      # 【新增】
+        VRRenderThread.h
+        VRRenderThread.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -88,16 +88,25 @@ if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(worksheet6)
 endif()
 
-# 复制VR绑定文件到构建目录
+# ---------------------------------------------------------------------------
+# Copy vrbindings into the build output directory.
+#
+# CMAKE_CURRENT_SOURCE_DIR is the src/ folder where this CMakeLists.txt lives.
+# vrbindings/ is kept one level up at the repository root, so we use ../vrbindings.
+# If you have moved vrbindings/ inside src/ instead, change the path to:
+#   ${CMAKE_CURRENT_SOURCE_DIR}/vrbindings
+# ---------------------------------------------------------------------------
 add_custom_target(VRBindings)
 add_custom_command(TARGET VRBindings PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E
-    copy_directory ${CMAKE_SOURCE_DIR}/vrbindings ${CMAKE_BINARY_DIR}/vrbindings)
+    copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/../vrbindings
+        ${CMAKE_BINARY_DIR}/vrbindings)
 
-# 确保 worksheet6 构建前自动复制 vrbindings
+# Ensure vrbindings are copied before the main target is built
 add_dependencies(worksheet6 VRBindings)
 
-# 【新增】自动运行vtk_module_autoinit，解决VTK模块注册问题
+# Run vtk_module_autoinit to register all VTK modules correctly
 vtk_module_autoinit(
     TARGETS worksheet6
     MODULES ${VTK_LIBRARIES}
