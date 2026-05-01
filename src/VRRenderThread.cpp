@@ -1,20 +1,27 @@
 /**  @file VRRenderThread.cpp
  *
+ *   EEEE2076 - 软件工程与VR项目
  *   EEEE2076 - Software Engineering & VR Project
  *
- *   VR渲染线程实现
+ *   VR渲染线程实现。支持两种渲染模式(自动检测头显):
+ *   VR render thread implementation. Supports two render modes (auto-detect headset):
+ *     - VR模式:连接HTC Vive头显时使用vtkOpenVRRenderWindow
+ *       VR mode: uses vtkOpenVRRenderWindow when HTC Vive headset is connected
+ *     - 桌面模式:无头显时自动fallback,使用普通vtkRenderWindow预览
+ *       Desktop mode: falls back to plain vtkRenderWindow when no headset is found
  *
- *   支持两种渲染模式(自动检测头显):
- *     - VR模式:连接HTC Vive头显时使用 vtkOpenVRRenderWindow
- *     - 桌面模式:无头显时自动fallback,使用普通 vtkRenderWindow 预览
- *
- *   创意功能:
- *     - Skybox 天空盒(CMD_SET_LIGHT_INTENSITY / setupSkybox)
+ *   特色功能:
+ *   Feature highlights:
+ *     - Skybox天空盒背景(程序生成星空cubemap)
+ *       Skybox background (procedurally generated starfield cubemap)
  *     - 光照强度实时控制(CMD_SET_LIGHT_INTENSITY,value=0.0~2.0)
- *
- *   加分功能:
- *     - 动态添加Actor(queueAddActor + processPendingActors)
- *     - 动态移除Actor(CMD_REMOVE_ACTOR)
+ *       Real-time light intensity control (CMD_SET_LIGHT_INTENSITY, value 0.0~2.0)
+ *     - 动态增删Actor(queueAddActor + processPendingActors / CMD_REMOVE_ACTOR)
+ *       Dynamic add/remove actors (queueAddActor + processPendingActors / CMD_REMOVE_ACTOR)
+ *     - 手柄射线拾取+拖动零件(VR模式)
+ *       Controller ray picking + drag parts (VR mode)
+ *     - 鼠标点击拾取+键盘快捷键(桌面模式)
+ *       Mouse click picking + keyboard shortcuts (desktop mode)
  */
 
 #include "VRRenderThread.h"
@@ -38,19 +45,21 @@
 #include <memory>
 
 /* ================================================================
- * 【B方案】颜色循环表(CMD_VR_SET_COLOUR 依次切换)
+ * 颜色循环表(CMD_VR_SET_COLOUR命令依次切换颜色)
+ * Colour cycle table (CMD_VR_SET_COLOUR command cycles through these)
  * ================================================================ */
 const int VRRenderThread::colorTable[VRRenderThread::COLOR_COUNT][3] = {
-    {255, 255, 255},   /* 白 */
-    {220,  50,  50},   /* 红 */
-    {50,  180,  50},   /* 绿 */
-    {50,  120, 220},   /* 蓝 */
-    {220, 180,  50},   /* 黄 */
-    {180,  50, 220},   /* 紫 */
+    {255, 255, 255},   /* 白 / White */
+    {220,  50,  50},   /* 红 / Red */
+    { 50, 180,  50},   /* 绿 / Green */
+    { 50, 120, 220},   /* 蓝 / Blue */
+    {220, 180,  50},   /* 黄 / Yellow */
+    {180,  50, 220},   /* 紫 / Purple */
 };
 
 /* ================================================================
  * 构造 / 析构
+ * Constructor / Destructor
  * ================================================================ */
 
 VRRenderThread::VRRenderThread(QObject* parent)
@@ -64,48 +73,61 @@ VRRenderThread::VRRenderThread(QObject* parent)
     , dragActorIndex(-1)
     , vrPickRenderer(nullptr)
 {
+    /* 初始化保存颜色(用于取消高亮时恢复)
+     * Initialise saved colour (used to restore when un-highlighting) */
     savedColor[0] = savedColor[1] = savedColor[2] = 1.0;
     vrDragLastPos[0] = vrDragLastPos[1] = vrDragLastPos[2] = 0.0;
 }
 
 VRRenderThread::~VRRenderThread()
 {
+    /* 请求中断并等待线程结束
+     * Request interruption and wait for the thread to finish */
     if (isRunning()) {
         requestInterruption();
         wait(5000);
     }
+    /* 释放所有Actor(由getNewActor()分配)
+     * Free all actors (allocated by getNewActor()) */
     for (vtkActor* a : actorList) {
         if (a) a->Delete();
     }
 }
 
 /* ================================================================
- * Model view helpers
+ * 模型视图辅助函数
+ * Model view helper functions
  *
- * saveFactoryState()     -- called once after scene setup; records the
- *                           camera and every actor's world position so
- *                           CMD_RESET_VIEW can restore them exactly.
+ * saveFactoryState()     -- 场景初始化后调用一次;记录相机和每个Actor的
+ *                           世界坐标,供CMD_RESET_VIEW精确恢复。
+ *                           Called once after scene setup; records the camera
+ *                           and every actor's world position for CMD_RESET_VIEW.
  *
- * resetModelView()       -- restores actors to factory positions and
- *                           clears rotation.  In real VR the camera is
- *                           left alone (the user moves physically);
- *                           in desktop fallback the camera is also reset.
+ * resetModelView()       -- 将Actor恢复到初始位置,清除旋转。
+ *                           Restores actors to factory positions, clears rotation.
+ *                           真实VR中不移动相机(用户物理站立);桌面模式中也重置相机。
+ *                           In real VR the camera is not moved (user stands physically);
+ *                           in desktop mode the camera is also reset.
  *
- * applyViewPreset(index) -- rotates all actors to the chosen preset:
- *                           0=Front, 1=Top, 2=Right Side, 3=Isometric.
- *                           Called via CMD_SET_VIEW with value=index.
- *                           This implements "set model view" from the rubric.
+ * applyViewPreset(index) -- 将所有Actor旋转到指定预设方向:
+ *                           Rotates all actors to the chosen preset orientation:
+ *                           0=正视图, 1=顶视图, 2=右视图, 3=等轴视图
+ *                           0=Front, 1=Top, 2=Right Side, 3=Isometric
  * ================================================================ */
 
 void VRRenderThread::saveFactoryState(vtkCamera* camera)
 {
     if (!camera) return;
 
+    /* 保存相机的位置、焦点和朝上方向
+     * Save the camera's position, focal point and view-up direction */
     camera->GetPosition(initCamPos);
     camera->GetFocalPoint(initCamFocal);
     camera->GetViewUp(initCamUp);
     initCamSaved = true;
 
+    /* 保存每个Actor的世界坐标
+     * Save the world position of each actor */
     initActorPositions.resize(actorList.size());
     for (int i = 0; i < actorList.size(); ++i) {
         if (actorList[i]) {
@@ -122,14 +144,16 @@ void VRRenderThread::resetModelView(vtkCamera* camera,
                                      vtkRenderer* renderer,
                                      bool restoreCamera)
 {
-    /* Stop any running animation */
+    /* 停止旋转动画
+     * Stop rotation animation */
     isRotating    = false;
     rotationAngle = 0.0;
 
-    /* Reset every actor: position back to factory location, orientation to zero */
+    /* 将每个Actor的位置和方向重置为场景初始化时保存的值
+     * Reset each actor's position and orientation to the saved factory state */
     for (int i = 0; i < actorList.size(); ++i) {
         if (!actorList[i]) continue;
-        actorList[i]->SetOrientation(0.0, 0.0, 0.0);
+        actorList[i]->SetOrientation(0.0, 0.0, 0.0);  /* 清除所有旋转 / Clear all rotation */
         if (i < initActorPositions.size()) {
             actorList[i]->SetPosition(
                 initActorPositions[i][0],
@@ -138,8 +162,8 @@ void VRRenderThread::resetModelView(vtkCamera* camera,
         }
     }
 
-    /* Restore camera only in desktop fallback (in real VR the user is
-     * physically standing -- moving the camera would feel wrong) */
+    /* 仅在桌面模式下恢复相机(VR模式中用户物理站立,移动相机会产生不适感)
+     * Only restore camera in desktop mode (in real VR moving the camera feels wrong) */
     if (restoreCamera && camera && renderer && initCamSaved) {
         camera->SetPosition(initCamPos);
         camera->SetFocalPoint(initCamFocal);
@@ -150,45 +174,61 @@ void VRRenderThread::resetModelView(vtkCamera* camera,
 
 void VRRenderThread::applyViewPreset(int index)
 {
-    /* Four named orientations applied as SetOrientation(pitch, yaw, roll).
-     *   0 -- Front:      model faces the viewer straight on
-     *   1 -- Top:        looking down at the top surface
-     *   2 -- Right side: model turned 90 deg to show its right face
-     *   3 -- Isometric:  classic 3/4 overview angle
-     */
+    /* 四个命名方向:通过SetOrientation(俯仰,偏航,滚转)应用
+     * Four named orientations applied as SetOrientation(pitch, yaw, roll)
+     *   0 - 正视图:模型正面朝向观察者
+     *       Front: model faces viewer straight on
+     *   1 - 顶视图:从上方俯视顶面
+     *       Top: looking down at the top surface
+     *   2 - 右视图:模型旋转90度展示右侧面
+     *       Right Side: model turned 90 degrees to show right face
+     *   3 - 等轴视图:经典3/4鸟瞰角度
+     *       Isometric: classic 3/4 overview angle */
     struct Preset { double pitch, yaw, roll; };
     static const Preset presets[] = {
-        {  0.0,   0.0, 0.0 },   /* Front      */
-        { 90.0,   0.0, 0.0 },   /* Top        */
-        {  0.0, -90.0, 0.0 },   /* Right Side */
-        { 30.0,  45.0, 0.0 },   /* Isometric  */
+        {  0.0,   0.0, 0.0 },   /* 正视图 / Front */
+        { 90.0,   0.0, 0.0 },   /* 顶视图 / Top */
+        {  0.0, -90.0, 0.0 },   /* 右视图 / Right Side */
+        { 30.0,  45.0, 0.0 },   /* 等轴视图 / Isometric */
     };
 
-    if (index < 0 || index > 3) index = 0;
+    if (index < 0 || index > 3) index = 0;  /* 越界则使用正视图 / Clamp to Front */
     const Preset& p = presets[index];
 
+    /* 对所有Actor应用相同的方向
+     * Apply the same orientation to all actors */
     for (int i = 0; i < actorList.size(); ++i)
         if (actorList[i])
             actorList[i]->SetOrientation(p.pitch, p.yaw, p.roll);
 }
 
 /* ================================================================
- * 【B方案】辅助:高亮 / 取消高亮
+ * 高亮辅助:选中/取消选中Actor
+ * Highlight helper: select/deselect an actor
+ *
+ * 选中时:保存原始颜色,替换为亮黄色并显示边缘线。
+ * When selecting: saves original colour, replaces with bright yellow and shows edge lines.
+ * 取消时:恢复原始颜色,隐藏边缘线。
+ * When deselecting: restores original colour, hides edge lines.
  * ================================================================ */
+
 void VRRenderThread::highlightActor(int idx, bool on)
 {
     if (idx < 0 || idx >= actorList.size() || !actorList[idx]) return;
     vtkProperty* prop = actorList[idx]->GetProperty();
     if (on) {
-        /* 保存原色 */
+        /* 保存原始颜色(取消高亮时恢复)
+         * Save the original colour (restored when unhighlighted) */
         prop->GetDiffuseColor(savedColor);
-        /* 亮黄色高亮 + 加粗边缘线 */
+        /* 应用亮黄色高亮+加粗边缘线
+         * Apply bright yellow highlight + thick edge lines */
         prop->SetDiffuseColor(1.0, 0.95, 0.0);
         prop->SetEdgeVisibility(1);
         prop->SetEdgeColor(1.0, 1.0, 0.0);
         prop->SetLineWidth(3.0);
     } else {
-        /* 恢复原色 */
+        /* 恢复原始颜色并隐藏边缘线
+         * Restore original colour and hide edge lines */
         prop->SetDiffuseColor(savedColor);
         prop->SetEdgeVisibility(0);
         prop->SetLineWidth(1.0);
@@ -196,14 +236,18 @@ void VRRenderThread::highlightActor(int idx, bool on)
 }
 
 /* ================================================================
- * 【B方案】辅助:鼠标坐标射线拾取 -> actor 索引
+ * 射线拾取辅助:屏幕坐标->Actor索引
+ * Ray-picking helper: screen coordinates -> actor index
  * ================================================================ */
+
 int VRRenderThread::pickActorAt(int x, int y, vtkRenderer* renderer)
 {
     vtkNew<vtkPropPicker> picker;
-    picker->Pick(x, y, 0, renderer);
+    picker->Pick(x, y, 0, renderer);  /* z=0表示从屏幕平面投射射线 / z=0 casts ray from screen plane */
     vtkActor* hit = picker->GetActor();
     if (!hit) return -1;
+    /* 在actorList中查找命中的Actor
+     * Search actorList for the hit actor */
     for (int i = 0; i < actorList.size(); ++i) {
         if (actorList[i] == hit) return i;
     }
@@ -211,16 +255,26 @@ int VRRenderThread::pickActorAt(int x, int y, vtkRenderer* renderer)
 }
 
 /* ================================================================
- * 【B方案】注册零件名称
+ * 注册零件名称(用于VR内选中时在状态栏显示)
+ * Register part name (for display in status bar when selected in VR)
  * ================================================================ */
+
 void VRRenderThread::setActorName(int index, const QString& name)
 {
+    /* 扩展列表以容纳指定索引
+     * Expand the list to accommodate the given index */
     while (actorNames.size() <= index) actorNames.append("");
     actorNames[index] = name;
 }
 
 /* ================================================================
- * 公共接口
+ * 公共接口:添加Actor(线程启动前批量添加)
+ * Public interface: add actor (batch add before thread starts)
+ *
+ * 为每个Actor预创建所有五种滤镜对象。
+ * Pre-creates all five filter objects for each actor.
+ * 滤镜对象始终存在,通过标志和rebuildPipeline()控制是否接入管线。
+ * Filter objects always exist; flags + rebuildPipeline() control whether they are wired in.
  * ================================================================ */
 
 int VRRenderThread::addActorOffline(vtkActor* actor,
@@ -234,9 +288,8 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
     actorList.append(actor);
     readerList.append(vtkSmartPointer<vtkSTLReader>(reader));
 
-    /* Pre-create clip and shrink filters for this actor (used by rebuildPipeline).
-     * The clip plane origin is set to the model's X-centre so the cut always
-     * bisects the model regardless of its position in world space. */
+    /* 裁剪滤镜:平面原点设为模型X中心,确保裁剪总是从中间切开
+     * Clip filter: plane origin at model X-centre so cut always bisects the model */
     double xCentre = 0.0;
     if (reader) {
         reader->Update();
@@ -252,13 +305,16 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
     vtkSmartPointer<vtkClipDataSet> cf = vtkSmartPointer<vtkClipDataSet>::New();
     cf->SetClipFunction(clipPlane.Get());
 
+    /* 收缩滤镜:系数0.6产生明显可见的间隙
+     * Shrink filter: factor 0.6 creates clearly visible gaps */
     vtkSmartPointer<vtkShrinkPolyData> sf = vtkSmartPointer<vtkShrinkPolyData>::New();
     sf->SetShrinkFactor(0.6);
 
     clipFilters.append(cf);
     shrinkFilters.append(sf);
 
-    /* ---- Smooth filter ---- */
+    /* 平滑滤镜
+     * Smooth filter */
     vtkSmartPointer<vtkSmoothPolyDataFilter> smf = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
     smf->SetNumberOfIterations(20);
     smf->SetRelaxationFactor(0.1);
@@ -266,7 +322,8 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
     smf->BoundarySmoothingOn();
     smoothFilters.append(smf);
 
-    /* ---- Decimate filter (needs clean + geometry conversion) ---- */
+    /* 抽取滤镜(需要GeometryFilter和CleanPolyData预处理)
+     * Decimate filter (requires GeometryFilter and CleanPolyData preprocessing) */
     vtkSmartPointer<vtkGeometryFilter>  gf  = vtkSmartPointer<vtkGeometryFilter>::New();
     vtkSmartPointer<vtkCleanPolyData>   clf = vtkSmartPointer<vtkCleanPolyData>::New();
     vtkSmartPointer<vtkDecimatePro>     df  = vtkSmartPointer<vtkDecimatePro>::New();
@@ -276,10 +333,10 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
     cleanFilters.append(clf);
     decimateFilters.append(df);
 
-    /* ---- Elevation filter + LUT ---- */
+    /* 高度色彩滤镜+彩虹色表
+     * Elevation filter + rainbow lookup table */
     vtkSmartPointer<vtkElevationFilter> ef = vtkSmartPointer<vtkElevationFilter>::New();
     if (reader) {
-        reader->Update();
         double bounds[6];
         reader->GetOutput()->GetBounds(bounds);
         double zMin = bounds[4], zMax = bounds[5];
@@ -289,7 +346,7 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
     }
     vtkSmartPointer<vtkLookupTable> lut = vtkSmartPointer<vtkLookupTable>::New();
     lut->SetNumberOfTableValues(256);
-    lut->SetHueRange(0.667, 0.0);   /* blue -> red */
+    lut->SetHueRange(0.667, 0.0);   /* 蓝色->红色 / Blue -> red */
     lut->Build();
     elevationFilters.append(ef);
     elevationLUTs.append(lut);
@@ -308,6 +365,8 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
 
 void VRRenderThread::clearActors()
 {
+    /* 清空所有列表(不Delete Actor,VR重启时由外部管理)
+     * Clear all lists (don't Delete actors; managed externally on VR restart) */
     actorList.clear();
     readerList.clear();
     mapperList.clear();
@@ -331,32 +390,39 @@ void VRRenderThread::clearActors()
 
 void VRRenderThread::issueCommand(int cmd, double value, int actorIndex)
 {
+    /* 线程安全地将命令推入队列(可从任意线程调用)
+     * Thread-safe enqueue of a command (can be called from any thread) */
     QMutexLocker locker(&mutex);
     commandQueue.enqueue(VRCmd(cmd, value, actorIndex));
 }
 
 void VRRenderThread::queueAddActor(const ActorPackage& pkg)
 {
-    /* 线程安全地将新Actor推入待添加队列
-     * 渲染循环在下一帧调用 processPendingActors 时消费 */
+    /* 线程安全地将新Actor推入待添加队列。
+     * 渲染循环在下一帧调用processPendingActors时消费此队列。
+     * Thread-safe push of a new actor to the pending queue.
+     * The render loop consumes this queue on the next frame via processPendingActors. */
     QMutexLocker locker(&pendingMutex);
     pendingActors.enqueue(pkg);
 }
 
 /* ================================================================
- * run() -- 自动检测头显,选择VR或桌面模式
+ * run()入口:自动检测头显,选择VR或桌面模式
+ * run() entry: auto-detect headset, choose VR or desktop mode
  * ================================================================ */
 
 void VRRenderThread::run()
 {
-    /* 尝试初始化OpenVR运行时,检测头显是否连接 */
+    /* 尝试初始化OpenVR运行时以检测头显是否连接
+     * Attempt to initialise the OpenVR runtime to detect a connected headset */
     bool vrAvailable = false;
     vr::EVRInitError initError = vr::VRInitError_None;
     vr::IVRSystem* vrSystem = vr::VR_Init(&initError, vr::VRApplication_Scene);
 
     if (initError == vr::VRInitError_None && vrSystem != nullptr) {
         vrAvailable = true;
-        /* 仅用于检测,关闭后由 vtkOpenVRRenderWindow 内部重新初始化 */
+        /* 仅用于检测;关闭后由vtkOpenVRRenderWindow内部重新初始化
+         * Only used for detection; closed so vtkOpenVRRenderWindow can reinitialise internally */
         vr::VR_Shutdown();
     }
 
@@ -368,7 +434,8 @@ void VRRenderThread::run()
 }
 
 /* ================================================================
- * VR 模式渲染循环
+ * VR模式渲染循环
+ * VR mode render loop
  * ================================================================ */
 
 void VRRenderThread::runVRMode()
@@ -379,38 +446,41 @@ void VRRenderThread::runVRMode()
     vtkNew<vtkOpenVRCamera>                 camera;
 
     renderWindow->AddRenderer(renderer);
-    renderWindow->SetSize(2160, 1200);
+    renderWindow->SetSize(2160, 1200);  /* HTC Vive分辨率 / HTC Vive resolution */
     interactor->SetRenderWindow(renderWindow);
     renderer->SetActiveCamera(camera);
+    renderer->SetBackground(0.05, 0.05, 0.15);  /* 深蓝色背景(Skybox会覆盖此颜色) / Deep blue (Skybox will override) */
 
-    renderer->SetBackground(0.05, 0.05, 0.15);
-
-    /* 添加启动时已注册的所有模型Actor */
+    /* 将启动时已注册的所有模型Actor加入渲染器
+     * Add all model actors registered before startup to the renderer */
     for (vtkActor* actor : actorList) {
         if (actor) renderer->AddActor(actor);
     }
 
-    /* 场景初始化(顺序:地板 -> 光照 -> Skybox)*/
+    /* 场景初始化顺序:地板->光照->Skybox
+     * Scene init order: floor -> lighting -> skybox */
     setupFloor(renderer.Get());
     setupLighting(renderer.Get());
     setupSkybox(renderer.Get(), renderWindow.Get());
 
-    /* ---- Action manifest 必须在 Initialize() 之前设置 ----
-     * SetActionManifestDirectory 指定整个 vrbindings 目录,
-     * SteamVR 才能找到 vtk_openvr_actions.json 及各手柄的绑定文件.
-     * SetActionManifestFileName 再指定具体的 actions 文件.
-     * 两者都要设置,缺一不可,否则 SteamVR 不加载绑定,手柄无射线. */
+    /* ---- 动作清单必须在Initialize()之前设置
+     *      Action manifest must be set before Initialize()
+     * SetActionManifestDirectory指定vrbindings目录,SteamVR从中找到动作绑定文件。
+     * SetActionManifestDirectory specifies the vrbindings directory where SteamVR finds action binding files.
+     * 两者都要设置,否则手柄无射线输入。
+     * Both must be set, otherwise controllers have no ray input. */
     QString bindingsDir  = QCoreApplication::applicationDirPath() + "/vrbindings";
     QString manifestPath = bindingsDir + "/vtk_openvr_actions.json";
     interactor->SetActionManifestDirectory(bindingsDir.toStdString());
     interactor->SetActionManifestFileName(manifestPath.toStdString());
 
-    /* Initialize 顺序:先 renderWindow(建立 OpenVR session),
-     * 再 interactor(注册 action set).顺序颠倒会导致绑定失效. */
+    /* 初始化顺序:先renderWindow建立OpenVR会话,再interactor注册动作集
+     * Init order: renderWindow first (establishes OpenVR session), interactor second (registers action set) */
     renderWindow->Initialize();
     interactor->Initialize();
 
-    /* ---- VR相机初始化:让模型近在眼前 ---- */
+    /* ---- 相机初始化:让模型出现在用户正前方
+     *      Camera init: position model in front of the user ---- */
     {
         double bounds[6] = {0,0,0,0,0,0};
         bool hasBounds = false;
@@ -418,7 +488,7 @@ void VRRenderThread::runVRMode()
         acs->InitTraversal();
         while (vtkActor* a = acs->GetNextActor()) {
             double b[6]; a->GetBounds(b);
-            if (b[0] > b[1]) continue;
+            if (b[0] > b[1]) continue;  /* 跳过无效包围盒 / Skip invalid bounds */
             if (!hasBounds) {
                 for (int i = 0; i < 6; ++i) bounds[i] = b[i];
                 hasBounds = true;
@@ -438,12 +508,13 @@ void VRRenderThread::runVRMode()
             double maxSize = std::max({bounds[1]-bounds[0],
                                        bounds[3]-bounds[2],
                                        bounds[5]-bounds[4]});
-            double camDist = maxSize * 1.2;
+            double camDist = maxSize * 1.2;  /* 相机距离=模型最大尺寸的1.2倍 / Camera distance = 1.2x model size */
             renderer->GetActiveCamera()->SetPosition(cx, cy, cz + camDist);
             renderer->GetActiveCamera()->SetFocalPoint(cx, cy, cz);
             renderer->GetActiveCamera()->SetViewUp(0.0, 1.0, 0.0);
             renderer->ResetCameraClippingRange();
-            /* Save factory snapshot (camera + actor positions after floor shift) */
+            /* 保存场景初始状态(地板平移后Actor的坐标)
+             * Save factory state (actor coordinates after floor shift) */
             saveFactoryState(renderer->GetActiveCamera());
         } else {
             renderer->ResetCamera();
@@ -451,63 +522,37 @@ void VRRenderThread::runVRMode()
     }
 
     /* ================================================================
-     * 手柄交互状态(局部变量,生命周期与渲染循环相同)
+     * 手柄交互:注册VTK 3D事件观察者
+     * Controller interaction: register VTK 3D event observers
      *
-     * 射线拾取方案:
-     *   每帧通过 GetControllerPose() 获取右手柄的世界坐标和朝向,
-     *   沿射线方向投射固定长度(rayLength),终点作为 pick 目标.
-     *   用 vtkPropPicker::Pick3DRay() 做三维射线与场景的相交测试,
-     *   命中即返回对应的 vtkActor.
+     * 使用vtkCommand::Button3DEvent和Move3DEvent而非已弃用的GetControllerState()。
+     * Uses vtkCommand::Button3DEvent and Move3DEvent instead of deprecated GetControllerState().
      *
-     * 拖动方案:
-     *   Trigger 按下 -> 记录 hitPoint 相对于 actor 原点的偏移 dragOffset[]
-     *                   和手柄当前位置 lastControllerPos[].
-     *   Trigger 持续 -> 每帧计算手柄位移增量,直接叠加到 actor->SetPosition().
-     *                   用增量方案而非绝对坐标,保证手柄抖动不会导致 actor 跳跃.
-     *   Trigger 释放 -> 清除拖动状态,保留选中高亮.
+     * Button3DEvent:每次手柄按键按下/释放时触发
+     *               Fires on every controller button press/release
+     *   - 回调数据:vtkEventDataDevice3D* 携带按键类型、动作、世界坐标和方向
+     *     Calldata: vtkEventDataDevice3D* carrying button type, action, world pos and direction
      *
-     * 按键映射(HTC Vive / Index):
-     *   Trigger(扳机)  -> 选中 / 开始拖动
-     *   Grip(握持键)   -> 释放拖动 / 取消选中
-     *   Trackpad 上      -> 可见性切换(选中状态下)
-     *   Trackpad 下      -> Shrink 滤镜切换
+     * Move3DEvent:每帧手柄移动时触发
+     *             Fires each frame the controller moves
+     *
+     * 按键映射(HTC Vive):
+     * Button mapping (HTC Vive):
+     *   Trigger按下  -> 射线拾取 + 开始拖动
+     *                   Ray pick + start drag
+     *   Trigger释放  -> 停止拖动
+     *                   Stop drag
+     *   Grip按下     -> 取消选中
+     *                   Deselect
      * ================================================================ */
 
-    /* ================================================================
-     * Controller interaction via VTK 3D events
-     *
-     * The old implementation used the deprecated GetControllerState() API
-     * which returns zero button data in SteamVR Input (OpenVR 1.x+).
-     *
-     * Fix: register observers for VTK's high-level 3D events which are
-     * driven by the action manifest and always carry valid button state.
-     *
-     *   Select3DEvent    - trigger press   -> ray-pick + start drag
-     *   EndSelect3DEvent - trigger release -> end drag
-     *   Clip3DEvent      - grip press      -> deselect
-     *   Move3DEvent      - every frame     -> translate dragged actor
-     * ================================================================ */
-
-    /* Save renderer pointer so member-function callbacks can use it */
+    /* 保存渲染器指针供成员函数回调使用
+     * Save renderer pointer for member-function callbacks */
     vrPickRenderer = renderer.Get();
     vrPicker = vtkSmartPointer<vtkPropPicker>::New();
 
-    /* ---- Register 3-D event observers ----------------------------------------
-     * vtkCommand::Button3DEvent fires on every controller button press/release.
-     * The calldata is a vtkEventDataDevice3D* carrying:
-     *   GetInput()          -> which button (Trigger, Grip, ...)
-     *   GetAction()         -> Press or Release
-     *   GetWorldPosition()  -> controller world-space XYZ
-     *   GetWorldDirection() -> controller pointing direction
-     *
-     * vtkCommand::Move3DEvent fires each frame the controller moves; its
-     * calldata is also a vtkEventDataDevice3D* with GetWorldPosition().
-     *
-     * This API exists in VTK 9.0+ and does NOT require the deprecated
-     * GetControllerState() or the VTK 9.2+ GetPhysicalEventPosition().
-     * -------------------------------------------------------------------------- */
-
-    /* Button3DEvent: handle Trigger press/release and Grip press */
+    /* Button3DEvent观察者:处理Trigger按下/释放和Grip按下
+     * Button3DEvent observer: handle Trigger press/release and Grip press */
     vtkNew<vtkCallbackCommand> btnCb;
     btnCb->SetClientData(this);
     btnCb->SetCallback([](vtkObject*, unsigned long, void* cd, void* callData) {
@@ -526,6 +571,8 @@ void VRRenderThread::runVRMode()
         else if (inp == Input::Trigger && act == Action::Release)
             self->onVRTriggerRelease();
         else if (inp == Input::Grip && act == Action::Press) {
+            /* Grip按下:停止拖动并取消选中
+             * Grip press: stop drag and deselect */
             self->onVRTriggerRelease();
             if (self->selectedActorIndex >= 0) {
                 self->highlightActor(self->selectedActorIndex, false);
@@ -536,7 +583,8 @@ void VRRenderThread::runVRMode()
     });
     interactor->AddObserver(vtkCommand::Button3DEvent, btnCb);
 
-    /* Move3DEvent: translate dragged actor each frame */
+    /* Move3DEvent观察者:每帧平移被拖动的Actor
+     * Move3DEvent observer: translate dragged actor each frame */
     vtkNew<vtkCallbackCommand> moveCb;
     moveCb->SetClientData(this);
     moveCb->SetCallback([](vtkObject*, unsigned long, void* cd, void* callData) {
@@ -546,10 +594,12 @@ void VRRenderThread::runVRMode()
     });
     interactor->AddObserver(vtkCommand::Move3DEvent, moveCb);
 
-    /* ---- Main render loop ---- */
+    /* ---- 主渲染循环
+     *      Main render loop ---- */
     while (!isInterruptionRequested()) {
 
-        /* Process GUI command queue */
+        /* 消费GUI命令队列(批量取出以减少锁时间)
+         * Consume the GUI command queue (batch dequeue to minimize lock time) */
         {
             mutex.lock();
             QQueue<VRCmd> localQueue;
@@ -559,8 +609,12 @@ void VRRenderThread::runVRMode()
                 processCommandVR(localQueue.dequeue(), renderer.Get());
         }
 
+        /* 处理动态添加的Actor
+         * Process dynamically added actors */
         processPendingActorsVR(renderer.Get());
 
+        /* 旋转动画:每帧增加0.5度
+         * Rotation animation: increment by 0.5 degrees per frame */
         if (isRotating) {
             rotationAngle += 0.5;
             if (rotationAngle >= 360.0) rotationAngle -= 360.0;
@@ -578,7 +632,11 @@ void VRRenderThread::runVRMode()
 }
 
 /* ================================================================
- * 桌面 fallback 模式渲染循环
+ * 桌面fallback模式渲染循环
+ * Desktop fallback mode render loop
+ *
+ * 无头显时使用此模式进行预览和功能验证。
+ * Used for preview and feature verification when no headset is connected.
  * ================================================================ */
 
 void VRRenderThread::runDesktopMode()
@@ -597,6 +655,8 @@ void VRRenderThread::runDesktopMode()
         if (actor) renderer->AddActor(actor);
     }
 
+    /* 场景初始化:与VR模式完全相同
+     * Scene init: identical to VR mode */
     setupFloorDesktop(renderer.Get());
     setupLightingDesktop(renderer.Get());
     setupSkyboxDesktop(renderer.Get(), renderWindow.Get());
@@ -606,10 +666,10 @@ void VRRenderThread::runDesktopMode()
     renderer->GetActiveCamera()->Azimuth(30);
     renderer->GetActiveCamera()->Elevation(30);
     renderer->ResetCameraClippingRange();
-    /* Save factory snapshot so Reset View works correctly in desktop mode */
     saveFactoryState(renderer->GetActiveCamera());
 
-    /* ---- 【B方案】Observer:在循环外注册一次,整个生命周期有效 ---- */
+    /* ---- 桌面模式交互:鼠标点击拾取 + 键盘快捷键
+     *      Desktop mode interaction: mouse click picking + keyboard shortcuts ---- */
     struct PickState {
         bool clickPending = false;
         int  clickX = 0, clickY = 0;
@@ -617,6 +677,8 @@ void VRRenderThread::runDesktopMode()
     };
     auto pickState = std::make_shared<PickState>();
 
+    /* 鼠标左键点击回调:记录点击坐标
+     * Left mouse button callback: record click coordinates */
     vtkNew<vtkCallbackCommand> clickCb;
     clickCb->SetCallback([](vtkObject* caller, unsigned long, void* cd, void*) {
         auto* inter = static_cast<vtkRenderWindowInteractor*>(caller);
@@ -628,6 +690,8 @@ void VRRenderThread::runDesktopMode()
     clickCb->SetClientData(pickState.get());
     interactor->AddObserver(vtkCommand::LeftButtonPressEvent, clickCb);
 
+    /* 键盘按键回调:记录按键字符
+     * Keyboard press callback: record key character */
     vtkNew<vtkCallbackCommand> keyCb;
     keyCb->SetCallback([](vtkObject* caller, unsigned long, void* cd, void*) {
         auto* inter = static_cast<vtkRenderWindowInteractor*>(caller);
@@ -639,9 +703,12 @@ void VRRenderThread::runDesktopMode()
 
     renderWindow->Render();
 
-    /* ---- 桌面渲染循环 ---- */
+    /* ---- 桌面渲染循环
+     *      Desktop render loop ---- */
     while (!isInterruptionRequested()) {
 
+        /* 消费命令队列
+         * Consume command queue */
         mutex.lock();
         QQueue<VRCmd> localQueue;
         localQueue.swap(commandQueue);
@@ -653,6 +720,8 @@ void VRRenderThread::runDesktopMode()
 
         processPendingActorsDesktop(renderer.Get());
 
+        /* 旋转动画
+         * Rotation animation */
         if (isRotating) {
             rotationAngle += 0.5;
             if (rotationAngle >= 360.0) rotationAngle -= 360.0;
@@ -666,16 +735,21 @@ void VRRenderThread::runDesktopMode()
         renderWindow->Render();
         interactor->ProcessEvents();
 
-        /* ---- 【B方案】处理鼠标点击拾取 ---- */
+        /* ---- 处理鼠标点击拾取
+         *      Handle mouse click picking ---- */
         if (pickState->clickPending) {
             pickState->clickPending = false;
             int hit = pickActorAt(pickState->clickX, pickState->clickY, renderer.Get());
 
             if (hit >= 0 && hit == selectedActorIndex) {
+                /* 再次点击同一Actor:取消选中
+                 * Click same actor again: deselect */
                 highlightActor(selectedActorIndex, false);
                 selectedActorIndex = -1;
                 emit vrActorSelected(-1, "");
             } else {
+                /* 点击不同Actor或空白区域
+                 * Click different actor or empty area */
                 if (selectedActorIndex >= 0)
                     highlightActor(selectedActorIndex, false);
                 selectedActorIndex = hit;
@@ -691,25 +765,35 @@ void VRRenderThread::runDesktopMode()
             }
         }
 
-        /* ---- 【B方案】键盘快捷键(选中状态下)----
-         *   V=可见性  S=Slice  K=Shrink  C=循环颜色 */
+        /* ---- 键盘快捷键(仅在有Actor被选中时生效)
+         *      Keyboard shortcuts (only active when an actor is selected)
+         *   V=切换可见性  S=切换Slice  K=切换Shrink  C=循环颜色
+         *   V=toggle Visible  S=toggle Slice  K=toggle Shrink  C=cycle Colour ---- */
         if (pickState->keyPending != 0 && selectedActorIndex >= 0) {
             char key = pickState->keyPending;
             int  si  = selectedActorIndex;
             switch (key) {
             case 'v': case 'V':
+                /* 切换可见性
+                 * Toggle visibility */
                 if (actorList[si])
                     actorList[si]->SetVisibility(!actorList[si]->GetVisibility());
                 break;
             case 's': case 'S':
+                /* 切换裁剪滤镜
+                 * Toggle clip filter */
                 clipState[si] = !clipState[si];
                 rebuildPipeline(si);
                 break;
             case 'k': case 'K':
+                /* 切换收缩滤镜
+                 * Toggle shrink filter */
                 shrinkState[si] = !shrinkState[si];
                 rebuildPipeline(si);
                 break;
             case 'c': case 'C': {
+                /* 循环切换颜色
+                 * Cycle through colour table */
                 while (actorColorIdx.size() <= si) actorColorIdx.append(0);
                 actorColorIdx[si] = (actorColorIdx[si] + 1) % COLOR_COUNT;
                 int ci = actorColorIdx[si];
@@ -717,6 +801,8 @@ void VRRenderThread::runDesktopMode()
                     colorTable[ci][0] / 255.0,
                     colorTable[ci][1] / 255.0,
                     colorTable[ci][2] / 255.0);
+                /* 同步savedColor,确保取消高亮时恢复正确颜色
+                 * Sync savedColor so unhighlighting restores the correct colour */
                 savedColor[0] = colorTable[ci][0] / 255.0;
                 savedColor[1] = colorTable[ci][1] / 255.0;
                 savedColor[2] = colorTable[ci][2] / 255.0;
@@ -727,21 +813,30 @@ void VRRenderThread::runDesktopMode()
         }
         pickState->keyPending = 0;
 
+        /* 窗口关闭检测(尺寸变为0×0表示窗口已关闭)
+         * Window close detection (size 0×0 means the window was closed) */
         if (renderWindow->GetSize()[0] == 0 && renderWindow->GetSize()[1] == 0) {
             break;
         }
 
-        QThread::msleep(16);
+        QThread::msleep(16);  /* 约60fps / ~60fps */
     }
 }
 
 /* ================================================================
- * 动态 Actor 队列处理
+ * 动态Actor队列处理
+ * Dynamic actor queue processing
+ *
+ * 每帧从待添加队列取出Actor并注册到渲染器。
+ * Each frame, dequeue actors from the pending queue and add them to the renderer.
+ * 批量处理以减少锁竞争。
+ * Batch processing to reduce lock contention.
  * ================================================================ */
 
 void VRRenderThread::processPendingActorsVR(vtkOpenVRRenderer* renderer)
 {
-    /* 取出所有待添加Actor(批量处理,减少锁竞争)*/
+    /* 批量取出所有待添加Actor
+     * Batch dequeue all pending actors */
     pendingMutex.lock();
     QQueue<ActorPackage> localPending;
     localPending.swap(pendingActors);
@@ -751,9 +846,8 @@ void VRRenderThread::processPendingActorsVR(vtkOpenVRRenderer* renderer)
         ActorPackage pkg = localPending.dequeue();
         if (!pkg.actor) continue;
 
-        /* 注册到内部列表(与 addActorOffline 相同逻辑)*/
-        /* Use the model X-centre as clip plane origin so the cut bisects
-         * the model rather than cutting at the world origin. */
+        /* 为新Actor创建裁剪滤镜(平面原点设为模型X中心)
+         * Create clip filter for new actor (plane origin at model X-centre) */
         double cpXCentre = 0.0;
         if (pkg.reader) {
             double b[6];
@@ -770,6 +864,8 @@ void VRRenderThread::processPendingActorsVR(vtkOpenVRRenderer* renderer)
         vtkSmartPointer<vtkShrinkPolyData> sf = vtkSmartPointer<vtkShrinkPolyData>::New();
         sf->SetShrinkFactor(0.6);
 
+        /* 注册到内部列表
+         * Register to internal lists */
         actorList.append(pkg.actor);
         readerList.append(pkg.reader);
         mapperList.append(vtkSmartPointer<vtkDataSetMapper>::New());
@@ -778,14 +874,16 @@ void VRRenderThread::processPendingActorsVR(vtkOpenVRRenderer* renderer)
         clipState.append(pkg.clipOn);
         shrinkState.append(pkg.shrinkOn);
 
-        /* 将新Actor加入渲染器(立即在下一帧生效)*/
+        /* 将新Actor加入渲染器(下一帧立即生效)
+         * Add new actor to renderer (takes effect next frame) */
         renderer->AddActor(pkg.actor);
     }
 }
 
 void VRRenderThread::processPendingActorsDesktop(vtkRenderer* renderer)
 {
-    /* 与VR版逻辑完全相同,仅renderer类型不同 */
+    /* 与VR版逻辑完全相同,仅renderer类型不同
+     * Same logic as VR version, only renderer type differs */
     pendingMutex.lock();
     QQueue<ActorPackage> localPending;
     localPending.swap(pendingActors);
@@ -795,8 +893,6 @@ void VRRenderThread::processPendingActorsDesktop(vtkRenderer* renderer)
         ActorPackage pkg = localPending.dequeue();
         if (!pkg.actor) continue;
 
-        /* Use the model X-centre as clip plane origin so the cut bisects
-         * the model rather than cutting at the world origin. */
         double cpXCentre = 0.0;
         if (pkg.reader) {
             double b[6];
@@ -826,10 +922,11 @@ void VRRenderThread::processPendingActorsDesktop(vtkRenderer* renderer)
 }
 
 /* ================================================================
- * VR controller event handlers
+ * VR手柄事件处理函数
+ * VR controller event handler functions
+ *
+ * 由runVRMode()中注册的静态VTK回调调用。
  * Called from static VTK callbacks registered in runVRMode().
- * Using member functions means private members are accessible
- * without requiring friend declarations or DragCtx hacks.
  * ================================================================ */
 
 void VRRenderThread::onVRTriggerPress(vtkEventDataDevice3D* ed,
@@ -837,27 +934,37 @@ void VRRenderThread::onVRTriggerPress(vtkEventDataDevice3D* ed,
 {
     if (!ed || !ren || !vrPicker) return;
 
-    /* World-space position and pointing direction from event data.
-     * These are provided by vtkEventDataDevice3D in VTK 9.0+. */
+    /* 从事件数据获取手柄世界坐标和指向方向
+     * Get controller world position and pointing direction from event data */
     const double* pos = ed->GetWorldPosition();
     const double* dir = ed->GetWorldDirection();
 
+    /* 沿射线方向投射10000单位,计算射线终点
+     * Project 10000 units along ray direction to compute ray end */
     const double RAY = 10000.0;
     double rayEnd[3] = { pos[0]+dir[0]*RAY, pos[1]+dir[1]*RAY, pos[2]+dir[2]*RAY };
     double p0[3]     = { pos[0], pos[1], pos[2] };
 
+    /* 三维射线与场景做相交测试
+     * Cast 3D ray against the scene */
     vrPicker->Pick3DRay(p0, rayEnd, ren);
     vtkActor* hit = vtkActor::SafeDownCast(vrPicker->GetProp3D());
 
+    /* 在actorList中查找命中的Actor
+     * Look up the hit actor in actorList */
     int hitIdx = -1;
     if (hit)
         for (int i = 0; i < actorList.size(); ++i)
             if (actorList[i] == hit) { hitIdx = i; break; }
 
+    /* 取消前一个选中的高亮(如果选中了不同Actor)
+     * Un-highlight previously selected actor (if a different one was hit) */
     if (selectedActorIndex >= 0 && selectedActorIndex != hitIdx)
         highlightActor(selectedActorIndex, false);
 
     if (hitIdx >= 0) {
+        /* 命中Actor:高亮并开始拖动
+         * Hit an actor: highlight and start dragging */
         selectedActorIndex = hitIdx;
         highlightActor(hitIdx, true);
         isDragging         = true;
@@ -871,6 +978,8 @@ void VRRenderThread::onVRTriggerPress(vtkEventDataDevice3D* ed,
                        : QString("Actor %1").arg(hitIdx);
         emit vrActorSelected(hitIdx, name);
     } else {
+        /* 未命中:取消选中
+         * No hit: deselect */
         selectedActorIndex = -1;
         isDragging         = false;
         dragActorIndex     = -1;
@@ -880,6 +989,8 @@ void VRRenderThread::onVRTriggerPress(vtkEventDataDevice3D* ed,
 
 void VRRenderThread::onVRTriggerRelease()
 {
+    /* Trigger释放:停止拖动(保留选中高亮)
+     * Trigger release: stop dragging (keep selection highlight) */
     isDragging     = false;
     dragActorIndex = -1;
 }
@@ -891,6 +1002,10 @@ void VRRenderThread::onVRControllerMove(vtkEventDataDevice3D* ed)
 
     const double* pos = ed->GetWorldPosition();
 
+    /* 计算手柄位移增量并叠加到Actor位置。
+     * 增量方案比绝对坐标方案更稳定,防止手柄抖动导致Actor跳跃。
+     * Calculate position delta and add to actor position.
+     * Delta approach is more stable than absolute coordinates, preventing jitter jumps. */
     double dx = pos[0] - vrDragLastPos[0];
     double dy = pos[1] - vrDragLastPos[1];
     double dz = pos[2] - vrDragLastPos[2];
@@ -898,23 +1013,30 @@ void VRRenderThread::onVRControllerMove(vtkEventDataDevice3D* ed)
     double* cur = actorList[dragActorIndex]->GetPosition();
     actorList[dragActorIndex]->SetPosition(cur[0]+dx, cur[1]+dy, cur[2]+dz);
 
+    /* 更新上一帧手柄位置
+     * Update previous frame controller position */
     vrDragLastPos[0] = pos[0];
     vrDragLastPos[1] = pos[1];
     vrDragLastPos[2] = pos[2];
 }
 
 /* ================================================================
- * Command processing -- VR mode
+ * 命令处理辅助函数
+ * Command processing helper function
+ *
+ * 对单个Actor(精确索引)或所有Actor(idx=-1)设置可见性。
+ * Sets visibility on a single actor (by exact index) or all actors (idx=-1).
  * ================================================================ */
 
-/** @brief 对单个Actor(或所有Actor)设置可见性 */
 static void applyVisibility(QList<vtkActor*>& actors, int idx, bool visible)
 {
     if (idx >= 0 && idx < actors.size()) {
-        /* 精确定位:只改指定Actor */
+        /* 精确定位:只改指定Actor
+         * Precise targeting: only modify the specified actor */
         if (actors[idx]) actors[idx]->SetVisibility(visible ? 1 : 0);
     } else {
-        /* idx == -1:批量设置全部Actor */
+        /* idx==-1:批量设置全部Actor
+         * idx==-1: batch set all actors */
         for (vtkActor* a : actors) {
             if (a) a->SetVisibility(visible ? 1 : 0);
         }
@@ -922,7 +1044,11 @@ static void applyVisibility(QList<vtkActor*>& actors, int idx, bool visible)
 }
 
 /* ================================================================
- * 命令处理 -- VR 模式
+ * 命令处理——VR模式
+ * Command processing — VR mode
+ *
+ * 每帧从commandQueue取出命令逐条处理。
+ * Commands are dequeued and processed one by one each frame.
  * ================================================================ */
 
 void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* renderer)
@@ -930,12 +1056,14 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
     switch (vcmd.cmd) {
 
     case CMD_SET_VISIBLE:
-        /* 精确可见性控制:actorIndex指定目标,-1表示全部 */
+        /* 设置可见性:actorIndex指定目标,-1表示全部
+         * Set visibility: actorIndex specifies target, -1 means all */
         applyVisibility(actorList, vcmd.actorIndex, vcmd.value > 0.5);
         break;
 
     case CMD_APPLY_FILTER: {
-        /* 解码:filterType * 10 + (enabled ? 1 : 0) */
+        /* 解码滤镜命令:value = filterType * 10 + (enabled ? 1 : 0)
+         * Decode filter command: value = filterType * 10 + (enabled ? 1 : 0) */
         int encoded    = static_cast<int>(vcmd.value + 0.5);
         int filterType = encoded / 10;
         bool enabled   = (encoded % 10) != 0;
@@ -943,6 +1071,8 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
 
         if (idx < 0 || idx >= actorList.size()) break;
 
+        /* 更新对应滤镜状态标志
+         * Update the corresponding filter state flag */
         if (filterType == FILTER_CLIP)      clipState[idx]      = enabled;
         if (filterType == FILTER_SHRINK)    shrinkState[idx]    = enabled;
         if (filterType == FILTER_SMOOTH)    smoothState[idx]    = enabled;
@@ -953,17 +1083,19 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
     }
 
     case CMD_REMOVE_ACTOR: {
-        /* 从渲染器和内部列表中移除指定Actor */
+        /* 从渲染器和内部列表中移除指定Actor
+         * Remove the specified actor from the renderer and internal lists */
         int idx = vcmd.actorIndex;
         if (idx < 0 || idx >= actorList.size()) break;
 
         vtkActor* a = actorList[idx];
         if (a && renderer) {
             renderer->RemoveActor(a);
-            a->Delete();  /* 释放 getNewActor() 分配的内存 */
+            a->Delete();  /* 释放getNewActor()分配的内存 / Free memory allocated by getNewActor() */
         }
 
-        /* 用nullptr占位,保持其他Actor索引不变 */
+        /* 用nullptr占位,保持其他Actor的索引不变
+         * Replace with nullptr to preserve other actors' indices */
         actorList[idx]     = nullptr;
         readerList[idx]    = nullptr;
         clipFilters[idx]   = nullptr;
@@ -972,8 +1104,8 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
     }
 
     case CMD_SET_LIGHT_INTENSITY:
-        /* 【创意功能】实时调整主光源强度
-         * value范围:0.0(熄灭)~ 2.0(最亮),默认0.8 */
+        /* 实时调整主光源强度(value范围:0.0~2.0)
+         * Real-time main light intensity adjustment (value range: 0.0~2.0) */
         mainLightIntensity = vcmd.value;
         if (mainLight) {
             mainLight->SetIntensity(mainLightIntensity);
@@ -989,18 +1121,19 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
         break;
 
     case CMD_RESET_VIEW:
-        /* Restore every actor to its factory position/orientation and stop
-         * rotation.  In real VR the camera is intentionally NOT moved. */
+        /* 在真实VR中不恢复相机(用户物理站立,移动相机会产生不适)
+         * Don't restore camera in real VR (user stands physically; moving camera feels wrong) */
         resetModelView(renderer->GetActiveCamera(), renderer, /*restoreCamera=*/false);
         break;
 
     case CMD_SET_VIEW:
-        /* Cycle to the next preset model orientation:
-         * Front -> Top -> Right Side -> Isometric -> Front -> ... */
+        /* 应用命名视图预设(0=正视图,1=顶视图,2=右视图,3=等轴视图)
+         * Apply named view preset (0=Front, 1=Top, 2=Right, 3=Isometric) */
         applyViewPreset(static_cast<int>(vcmd.value + 0.5));
         break;
 
-    /* 颜色通过共享Property自动同步,无需命令处理 */
+    /* 颜色通过共享vtkProperty自动同步,无需命令处理
+     * Colour syncs automatically via shared vtkProperty, no command needed */
     case CMD_SET_COLOUR_R:
     case CMD_SET_COLOUR_G:
     case CMD_SET_COLOUR_B:
@@ -1012,7 +1145,11 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
 }
 
 /* ================================================================
- * 命令处理 -- 桌面模式(逻辑与VR模式完全相同)
+ * 命令处理——桌面模式
+ * Command processing — desktop mode
+ *
+ * 逻辑与VR模式基本相同,但桌面模式重置视图时也恢复相机。
+ * Logic is mostly identical to VR mode, but desktop mode also restores the camera on reset.
  * ================================================================ */
 
 void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* renderer)
@@ -1062,18 +1199,17 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
         if (mainLight) mainLight->SetIntensity(mainLightIntensity);
         break;
 
-    /* ---- 【B方案】VR内选中属性修改命令 ---- */
+    /* VR内选中属性修改命令(桌面模式也支持,用于键盘控制)
+     * In-VR property modification commands (also supported in desktop for keyboard control) */
     case CMD_VR_SELECT_ACTOR: {
         int idx = vcmd.actorIndex;
-        if (selectedActorIndex >= 0)
-            highlightActor(selectedActorIndex, false);
+        if (selectedActorIndex >= 0) highlightActor(selectedActorIndex, false);
         selectedActorIndex = idx;
         if (idx >= 0) highlightActor(idx, true);
         break;
     }
     case CMD_VR_DESELECT:
-        if (selectedActorIndex >= 0)
-            highlightActor(selectedActorIndex, false);
+        if (selectedActorIndex >= 0) highlightActor(selectedActorIndex, false);
         selectedActorIndex = -1;
         break;
 
@@ -1127,8 +1263,8 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
         break;
 
     case CMD_RESET_VIEW:
-        /* In desktop fallback mode also restore the camera so the window
-         * snaps back to a useful viewing angle. */
+        /* 桌面模式:也恢复相机,使窗口回到有用的观察角度
+         * Desktop mode: also restore camera so the window snaps back to a useful angle */
         resetModelView(renderer->GetActiveCamera(), renderer, /*restoreCamera=*/true);
         break;
 
@@ -1147,7 +1283,13 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
 }
 
 /* ================================================================
- * 过滤器 pipeline 重建
+ * VR管线重建
+ * VR pipeline rebuild
+ *
+ * 根据当前滤镜状态重建指定Actor的VTK管线。
+ * Rebuilds the VTK pipeline for a specified actor based on current filter states.
+ * 路由:STLReader -> [Clip] -> [Shrink] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper
+ * Route: STLReader -> [Clip] -> [Shrink] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper
  * ================================================================ */
 
 void VRRenderThread::rebuildPipeline(int idx)
@@ -1161,8 +1303,8 @@ void VRRenderThread::rebuildPipeline(int idx)
     vtkDataSetMapper* mapper = vtkDataSetMapper::SafeDownCast(actor->GetMapper());
     if (!mapper) return;
 
-    /* Mirror ModelPart::updatePipeline():
-     * STLReader -> [Clip] -> [Shrink] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper */
+    /* 从STL读取器开始逐级接入活跃的滤镜
+     * Start from the STL reader and chain through active filters */
     vtkAlgorithmOutput* current = reader->GetOutputPort();
 
     if (clipState[idx]) {
@@ -1181,6 +1323,8 @@ void VRRenderThread::rebuildPipeline(int idx)
     }
 
     if (decimateState[idx]) {
+        /* 抽取前需要GeometryFilter转换类型+CleanPolyData合并重复点
+         * Before decimating: GeometryFilter converts type + CleanPolyData merges duplicate points */
         geometryFilters[idx]->SetInputConnection(current);
         cleanFilters[idx]->SetInputConnection(geometryFilters[idx]->GetOutputPort());
         decimateFilters[idx]->SetInputConnection(cleanFilters[idx]->GetOutputPort());
@@ -1190,37 +1334,43 @@ void VRRenderThread::rebuildPipeline(int idx)
     if (elevationState[idx]) {
         elevationFilters[idx]->SetInputConnection(current);
         current = elevationFilters[idx]->GetOutputPort();
+        /* 启用彩虹色表
+         * Enable rainbow colour table */
         mapper->SetLookupTable(elevationLUTs[idx]);
         mapper->SetScalarRange(0.0, 1.0);
         mapper->ScalarVisibilityOn();
     } else {
+        /* 关闭标量着色,恢复Actor颜色
+         * Disable scalar colouring, restore actor colour */
         mapper->ScalarVisibilityOff();
     }
 
     mapper->SetInputConnection(current);
-    mapper->Update();
+    mapper->Update();  /* 强制立即更新管线 / Force immediate pipeline update */
 }
 
 /* ================================================================
- * 背景渐变(渐变背景取代Skybox,兼容所有VTK版本)
+ * 程序生成星空Cubemap
+ * Procedurally generated starfield cubemap
+ *
+ * vtkTexture::CubeMapOn()需要6个面的图像数据。
+ * vtkTexture::CubeMapOn() requires image data for 6 faces.
+ * 每面使用不同随机种子生成,内容略有差异产生真实感。
+ * Each face uses a different seed for subtle variation, creating realism.
+ * 不依赖外部贴图文件。
+ * No external texture files required.
  * ================================================================ */
 
-/* ================================================================
- * 程序生成星空 Cubemap(6面,每面 512×512)
- *
- * vtkTexture::CubeMapOn() 要求传入包含6个分量的 vtkImageData,
- * 每个分量对应一个面(+X -X +Y -Y +Z -Z).
- * 用固定种子程序生成,不依赖外部文件.
- * ================================================================ */
 static vtkSmartPointer<vtkTexture> generateCubemapTexture()
 {
-    const int S = 512, NC = 3;          /* 每面 512×512,RGB */
+    const int S = 512, NC = 3;  /* 每面512×512 RGB / 512×512 RGB per face */
 
     auto clamp = [](int v) -> unsigned char {
         return (unsigned char)(v < 0 ? 0 : v > 255 ? 255 : v);
     };
 
-    /* 生成单面星空图 */
+    /* 生成单面星空图(与mainwindow.cpp中的算法相同)
+     * Generate a single starfield face (same algorithm as in mainwindow.cpp) */
     auto makeFace = [&](unsigned int seed) -> vtkSmartPointer<vtkImageData> {
         std::srand(seed);
         vtkSmartPointer<vtkImageData> img = vtkSmartPointer<vtkImageData>::New();
@@ -1228,6 +1378,8 @@ static vtkSmartPointer<vtkTexture> generateCubemapTexture()
         img->AllocateScalars(VTK_UNSIGNED_CHAR, NC);
         unsigned char* buf = static_cast<unsigned char*>(img->GetScalarPointer());
 
+        /* 边界安全的像素叠加(加法混合+clamp)
+         * Bounds-safe pixel additive blend with clamp */
         auto addPx = [&](int x, int y, int dr, int dg, int db) {
             if (x < 0 || x >= S || y < 0 || y >= S) return;
             unsigned char* p = buf + (y * S + x) * NC;
@@ -1236,14 +1388,17 @@ static vtkSmartPointer<vtkTexture> generateCubemapTexture()
             p[2] = clamp((int)p[2] + db);
         };
 
-        /* 深空底色 */
+        /* 深空底色
+         * Deep-space base colour */
         for (int i = 0; i < S * S; ++i) {
             int n = std::rand() % 14;
             buf[i*NC+0] = clamp(3  + n/3);
             buf[i*NC+1] = clamp(4  + n/4);
             buf[i*NC+2] = clamp(16 + n);
         }
-        /* 星云(每面2个)*/
+
+        /* 星云(每面2个)
+         * Nebula blobs (2 per face) */
         for (int k = 0; k < 2; ++k) {
             int cx = std::rand()%S, cy = std::rand()%S;
             int r  = 40 + std::rand()%70;
@@ -1256,13 +1411,15 @@ static vtkSmartPointer<vtkTexture> generateCubemapTexture()
                 addPx((cx+dx+S)%S,(cy+dy+S)%S,(int)(nr*a),(int)(ng*a),(int)(nb*a));
             }
         }
-        /* 点星(每面120颗)*/
+
+        /* 点星(每面120颗)
+         * Point stars (120 per face) */
         for (int s = 0; s < 120; ++s) {
             int sx=std::rand()%S, sy=std::rand()%S, t=std::rand()%3;
             int sr, sg, sb;
-            if      (t==0){sr=sg=sb=215+std::rand()%40;}
-            else if (t==1){sr=175+std::rand()%55;sg=185+std::rand()%55;sb=255;}
-            else          {sr=255;sg=230+std::rand()%25;sb=175+std::rand()%55;}
+            if      (t==0){sr=sg=sb=215+std::rand()%40;}       /* 白 / White */
+            else if (t==1){sr=175+std::rand()%55;sg=185+std::rand()%55;sb=255;} /* 蓝白 / Blue-white */
+            else          {sr=255;sg=230+std::rand()%25;sb=175+std::rand()%55;} /* 黄 / Yellow */
             int hr=1+std::rand()%3;
             for (int dy=-hr; dy<=hr; ++dy)
             for (int dx=-hr; dx<=hr; ++dx) {
@@ -1275,26 +1432,27 @@ static vtkSmartPointer<vtkTexture> generateCubemapTexture()
         return img;
     };
 
-    /* 创建 cubemap texture:6 个面使用不同种子,内容略有差异 */
+    /* 创建Cubemap贴图:6个面使用不同种子
+     * Create cubemap texture: 6 faces with different seeds */
     vtkSmartPointer<vtkTexture> tex = vtkSmartPointer<vtkTexture>::New();
     tex->CubeMapOn();
     tex->InterpolateOn();
     tex->MipmapOn();
     tex->RepeatOff();
-    /* VTK cubemap:每个面用 SetInputDataObject(index, imageData) 传入 */
     for (int face = 0; face < 6; ++face) {
         tex->SetInputDataObject(face, makeFace(20250428u + (unsigned int)face * 137u));
     }
     return tex;
 }
 
-/* 辅助:把 vtkSkybox 加入渲染器 */
+/* 将vtkSkybox加入渲染器的辅助函数
+ * Helper: attach a vtkSkybox to the renderer */
 static void attachSkybox(vtkRenderer* renderer, vtkSmartPointer<vtkTexture> cubemap)
 {
     vtkSmartPointer<vtkSkybox> skybox = vtkSmartPointer<vtkSkybox>::New();
     skybox->SetTexture(cubemap);
     renderer->AddActor(skybox);
-    renderer->GradientBackgroundOff();
+    renderer->GradientBackgroundOff();  /* 关闭渐变背景,让Skybox可见 / Disable gradient so Skybox is visible */
 }
 
 void VRRenderThread::setupSkybox(vtkOpenVRRenderer* renderer,
@@ -1310,39 +1468,50 @@ void VRRenderThread::setupSkyboxDesktop(vtkRenderer* renderer,
 }
 
 /* ================================================================
- * 光照
+ * 光照初始化
+ * Lighting initialisation
+ *
+ * 使用主光(Key Light)+补光(Fill Light)两光源方案:
+ * Uses a Key + Fill two-light rig:
+ *   - 主光:正面暖白光,受CMD_SET_LIGHT_INTENSITY实时控制
+ *     Key light: front warm white, real-time controlled by CMD_SET_LIGHT_INTENSITY
+ *   - 补光:侧后方冷蓝光,强度固定为主光的50%,提供轮廓感
+ *     Fill light: side-rear cool blue, fixed at 50% of key, provides silhouette depth
  * ================================================================ */
 
 void VRRenderThread::setupLighting(vtkOpenVRRenderer* renderer)
 {
-    /* 主光源(正面暖白光)-- 保存到成员变量供强度调整命令使用 */
+    /* 主光源:保存到成员变量供强度调整命令使用
+     * Key light: saved to member variable for intensity adjustment commands */
     mainLight = vtkSmartPointer<vtkLight>::New();
     mainLight->SetLightTypeToSceneLight();
     mainLight->SetPosition(5.0, 10.0, 15.0);
-    mainLight->SetPositional(false);
+    mainLight->SetPositional(false);  /* 方向光(无衰减) / Directional light (no attenuation) */
     mainLight->SetFocalPoint(0.0, 0.0, 0.0);
-    mainLight->SetDiffuseColor(1.0, 1.0, 1.0);
-    mainLight->SetAmbientColor(0.3, 0.3, 0.3);
-    mainLight->SetSpecularColor(1.0, 1.0, 1.0);
+    mainLight->SetDiffuseColor(1.0, 1.0, 1.0);   /* 白色漫反射 / White diffuse */
+    mainLight->SetAmbientColor(0.3, 0.3, 0.3);   /* 环境光提升基础亮度 / Ambient raises base brightness */
+    mainLight->SetSpecularColor(1.0, 1.0, 1.0);  /* 白色高光 / White specular */
     mainLight->SetIntensity(mainLightIntensity);
     renderer->AddLight(mainLight);
 
-    /* 补光(冷蓝色,来自侧后方,提供轮廓感)*/
+    /* 补光:冷蓝色,来自侧后方
+     * Fill light: cool blue from the side-rear */
     vtkSmartPointer<vtkLight> fillLight = vtkSmartPointer<vtkLight>::New();
     fillLight->SetLightTypeToSceneLight();
     fillLight->SetPosition(-8.0, 5.0, -5.0);
     fillLight->SetPositional(false);
     fillLight->SetFocalPoint(0.0, 0.0, 0.0);
-    fillLight->SetDiffuseColor(0.8, 0.9, 1.0);
+    fillLight->SetDiffuseColor(0.8, 0.9, 1.0);  /* 冷蓝色 / Cool blue */
     fillLight->SetAmbientColor(0.0, 0.0, 0.0);
     fillLight->SetSpecularColor(0.0, 0.0, 0.0);
-    fillLight->SetIntensity(0.4);
+    fillLight->SetIntensity(0.4);  /* 主光的50% / 50% of key light */
     renderer->AddLight(fillLight);
 }
 
 void VRRenderThread::setupLightingDesktop(vtkRenderer* renderer)
 {
-    /* 桌面模式与VR模式完全相同的光照设置 */
+    /* 桌面模式与VR模式完全相同的光照设置
+     * Identical lighting setup to VR mode */
     mainLight = vtkSmartPointer<vtkLight>::New();
     mainLight->SetLightTypeToSceneLight();
     mainLight->SetPosition(5.0, 10.0, 15.0);
@@ -1367,19 +1536,26 @@ void VRRenderThread::setupLightingDesktop(vtkRenderer* renderer)
 }
 
 /* ================================================================
- * 地板
- * ================================================================ */
-
-/* ================================================================
- * 地板
- * 地板固定在 Y=0(代表 VR 世界的地面).
- * 所有模型 Actor 整体向上平移,使其底部位于 Y≈1.2(桌面/展示台高度),
- * 人站在地板上时零件自然处于正前方视线高度.
+ * 地板创建
+ * Floor creation
+ *
+ * 地板固定在Y=0(代表VR世界的地面)。
+ * Floor is fixed at Y=0 (representing the VR world's ground plane).
+ *
+ * 算法:
+ * Algorithm:
+ *   1. 计算所有模型Actor的整体包围盒
+ *      Compute the overall bounding box of all model actors
+ *   2. 将所有Actor整体上移,使模型底部悬浮在合适高度(桌面/展示台高度)
+ *      Shift all actors upward so model bottom floats at display height
+ *   3. 在Y=0创建覆盖模型水平范围的地板平面
+ *      Create a floor plane at Y=0 covering the model's horizontal extent
  * ================================================================ */
 
 static void buildFloorActor(vtkRenderer* renderer)
 {
-    /* ---- 步骤1:计算所有模型Actor的整体包围盒 ---- */
+    /* 步骤1:计算所有模型Actor的整体包围盒
+     * Step 1: compute overall bounding box of all model actors */
     double sceneBounds[6] = {0,0,0,0,0,0};
     bool   hasBounds      = false;
 
@@ -1389,7 +1565,7 @@ static void buildFloorActor(vtkRenderer* renderer)
         if (a->GetMapper()) a->GetMapper()->Update();
         double b[6];
         a->GetBounds(b);
-        if (b[0] > b[1]) continue;   /* 跳过无效包围盒 */
+        if (b[0] > b[1]) continue;  /* 跳过无效包围盒(如Skybox) / Skip invalid bounds (e.g. Skybox) */
         if (!hasBounds) {
             for (int i = 0; i < 6; ++i) sceneBounds[i] = b[i];
             hasBounds = true;
@@ -1403,17 +1579,23 @@ static void buildFloorActor(vtkRenderer* renderer)
         }
     }
 
-    /* ---- 步骤2:把所有模型Actor整体上移 ----
-     * DISPLAY_HEIGHT = 模型高度的 0.8 倍,使零件底部悬浮在合适高度
-     * 无论模型单位是毫米还是米,比例自适应,人站立时零件在正前方. */
+    /* 步骤2:将所有Actor整体上移
+     * Step 2: shift all actors upward
+     *
+     * DISPLAY_HEIGHT = 模型高度的0.8倍,使零件底部悬浮在合适高度。
+     * DISPLAY_HEIGHT = 0.8x model height; keeps the part bottom at a good display height.
+     * 此比例自适应不同单位(毫米/米)的模型。
+     * This ratio is adaptive across models in different units (mm/m). */
     const double TARGET_FLOOR_Y = 0.0;
 
     if (hasBounds) {
-        double modelBottomY = sceneBounds[2];
-        double modelHeight  = sceneBounds[3] - sceneBounds[2];
+        double modelBottomY   = sceneBounds[2];
+        double modelHeight    = sceneBounds[3] - sceneBounds[2];
         double DISPLAY_HEIGHT = std::max(modelHeight * 0.8, 0.1);
-        double shiftY = (TARGET_FLOOR_Y + DISPLAY_HEIGHT) - modelBottomY;
+        double shiftY         = (TARGET_FLOOR_Y + DISPLAY_HEIGHT) - modelBottomY;
 
+        /* 对所有Actor应用相同的Y方向位移
+         * Apply the same Y-shift to all actors */
         actors->InitTraversal();
         while (vtkActor* a = actors->GetNextActor()) {
             double pos[3];
@@ -1421,7 +1603,8 @@ static void buildFloorActor(vtkRenderer* renderer)
             a->SetPosition(pos[0], pos[1] + shiftY, pos[2]);
         }
 
-        /* 平移后重新取包围盒,用于确定地板范围 */
+        /* 平移后重新计算包围盒,用于确定地板范围
+         * Recompute bounds after shift to determine floor dimensions */
         for (int i = 0; i < 6; ++i) sceneBounds[i] = 0;
         hasBounds = false;
         actors->InitTraversal();
@@ -1440,10 +1623,11 @@ static void buildFloorActor(vtkRenderer* renderer)
         }
     }
 
-    /* ---- 步骤3:创建地板,固定在 Y=0,尺寸覆盖模型水平范围 ---- */
+    /* 步骤3:创建地板平面(固定在Y=0,尺寸覆盖模型水平范围的2倍)
+     * Step 3: create floor plane (fixed at Y=0, size covers 2x model horizontal extent) */
     double spanX = hasBounds ? (sceneBounds[1] - sceneBounds[0]) : 20.0;
     double spanZ = hasBounds ? (sceneBounds[5] - sceneBounds[4]) : 20.0;
-    double halfX = std::max(spanX * 2.0, 15.0);
+    double halfX = std::max(spanX * 2.0, 15.0);  /* 至少15单位宽 / At least 15 units wide */
     double halfZ = std::max(spanZ * 2.0, 15.0);
     double cx    = hasBounds ? (sceneBounds[0] + sceneBounds[1]) / 2.0 : 0.0;
     double cz    = hasBounds ? (sceneBounds[4] + sceneBounds[5]) / 2.0 : 0.0;
@@ -1452,7 +1636,7 @@ static void buildFloorActor(vtkRenderer* renderer)
     floorPlane->SetOrigin(cx - halfX, TARGET_FLOOR_Y, cz - halfZ);
     floorPlane->SetPoint1(cx + halfX, TARGET_FLOOR_Y, cz - halfZ);
     floorPlane->SetPoint2(cx - halfX, TARGET_FLOOR_Y, cz + halfZ);
-    floorPlane->SetResolution(20, 20);
+    floorPlane->SetResolution(20, 20);  /* 细分以获得更好的光照效果 / Subdivide for better lighting */
     floorPlane->Update();
 
     vtkNew<vtkPolyDataMapper> floorMapper;
@@ -1460,10 +1644,10 @@ static void buildFloorActor(vtkRenderer* renderer)
 
     vtkNew<vtkActor> floorActor;
     floorActor->SetMapper(floorMapper);
-    floorActor->GetProperty()->SetColor(0.3, 0.3, 0.3);
-    floorActor->GetProperty()->SetAmbient(0.5);
+    floorActor->GetProperty()->SetColor(0.3, 0.3, 0.3);  /* 深灰色地板 / Dark grey floor */
+    floorActor->GetProperty()->SetAmbient(0.5);           /* 较高环境光使地板不过暗 / Higher ambient keeps floor visible */
     floorActor->GetProperty()->SetDiffuse(0.5);
-    floorActor->GetProperty()->SetSpecular(0.1);
+    floorActor->GetProperty()->SetSpecular(0.1);          /* 轻微高光 / Slight specular */
 
     renderer->AddActor(floorActor);
 }

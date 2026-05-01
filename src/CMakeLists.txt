@@ -6,6 +6,9 @@ project(worksheet6 VERSION 0.1 LANGUAGES CXX)
 set(VTK_USE_VULKAN OFF CACHE BOOL "" FORCE)
 set(VTK_ENABLE_VR_SUPPORT ON CACHE BOOL "" FORCE)
 
+set(OpenVR_INCLUDE_DIR "C:/Users/adria/openvr-master/openvr-master/headers")
+set(OpenVR_LIBRARY "C:/Users/adria/openvr-master/openvr-master/lib/win64/openvr_api.lib")
+
 # Explicitly specify required VTK components including OpenVR
 find_package(VTK REQUIRED COMPONENTS
     CommonCore
@@ -51,6 +54,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         optiondialog.h optiondialog.cpp optiondialog.ui
+    )
+    target_include_directories(worksheet6 PRIVATE
+     "${OPENVR_ROOT}/headers"
     )
 else()
     if(ANDROID)
