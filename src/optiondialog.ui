@@ -3,168 +3,251 @@
  <class>OptionDialog</class>
  <widget class="QDialog" name="OptionDialog">
   <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>400</width>
-    <height>320</height>
-   </rect>
+   <rect><x>0</x><y>0</y><width>380</width><height>300</height></rect>
   </property>
   <property name="sizePolicy">
-   <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
-    <horstretch>0</horstretch>
-    <verstretch>0</verstretch>
+   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+    <horstretch>0</horstretch><verstretch>0</verstretch>
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Item Options</string>
+   <string>Part Properties</string>
   </property>
-  <widget class="QWidget" name="">
-   <property name="geometry">
-    <rect>
-     <x>30</x>
-     <y>30</y>
-     <width>330</width>
-     <height>270</height>
-    </rect>
+  <property name="styleSheet">
+   <string notr="true">
+QDialog { background-color: #0d1420; color: #c8d8f0; font-family: "Segoe UI", sans-serif; font-size: 13px; }
+QLabel { color: #4a6fa0; background: transparent; font-size: 11px; font-weight: 600; }
+QLineEdit { background-color: #080e1a; color: #c8d8f0; border: 1px solid #1e3050; border-radius: 5px; padding: 6px 10px; font-size: 13px; selection-background-color: #1d4ed8; }
+QLineEdit:focus { border-color: #3b82f6; background-color: #0a1220; }
+QLineEdit:hover { border-color: #2a4878; }
+QSpinBox { background-color: #080e1a; color: #c8d8f0; border: 1px solid #1e3050; border-radius: 5px; padding: 5px 8px; font-size: 13px; font-family: Consolas, monospace; min-width: 72px; }
+QSpinBox:focus { border-color: #3b82f6; }
+QSpinBox:hover { border-color: #2a4878; }
+QSpinBox::up-button { background: #111c2e; border: none; width: 18px; border-top-right-radius: 5px; }
+QSpinBox::down-button { background: #111c2e; border: none; width: 18px; border-bottom-right-radius: 5px; }
+QSpinBox::up-button:hover, QSpinBox::down-button:hover { background: #1a3060; }
+QPushButton#pickColourButton { background: transparent; color: #60a5fa; border: 1px solid #1d4ed8; border-radius: 5px; padding: 5px 14px; font-size: 12px; font-weight: 600; min-width: 100px; }
+QPushButton#pickColourButton:hover { background-color: #0f2040; border-color: #3b82f6; color: #93c5fd; }
+QPushButton#pickColourButton:pressed { background-color: #1a3060; }
+QLabel#colourSwatch { border: 1px solid #2a4878; border-radius: 4px; }
+QCheckBox { color: #7a9cc8; font-family: "Segoe UI", sans-serif; font-size: 12px; spacing: 8px; background: transparent; }
+QCheckBox:hover { color: #a0c8ff; }
+QCheckBox:checked { color: #60a5fa; font-weight: 600; }
+QCheckBox::indicator { width: 15px; height: 15px; border: 1px solid #2a4070; border-radius: 3px; background-color: #080e1a; }
+QCheckBox::indicator:hover { border-color: #3b82f6; }
+QCheckBox::indicator:checked { background-color: #1d4ed8; border-color: #3b82f6; }
+QDialogButtonBox QPushButton { background: transparent; color: #4a6fa0; border: 1px solid #1e3050; border-radius: 5px; padding: 6px 20px; font-size: 12px; font-weight: 600; min-width: 70px; }
+QDialogButtonBox QPushButton:hover { background-color: #111c2e; color: #c8d8f0; border-color: #2a4878; }
+QDialogButtonBox QPushButton[text="OK"] { background-color: #0f2040; color: #60a5fa; border-color: #1d4ed8; }
+QDialogButtonBox QPushButton[text="OK"]:hover { background-color: #1a3060; border-color: #3b82f6; color: #93c5fd; }
+QFrame#divider { color: #1e3050; background-color: #1e3050; max-height: 1px; border: none; }
+   </string>
+  </property>
+
+  <layout class="QVBoxLayout" name="outerLayout">
+   <property name="spacing">
+    <number>8</number>
    </property>
-   <layout class="QFormLayout" name="formLayout">
-    <property name="horizontalSpacing">
-     <number>28</number>
-    </property>
-    <property name="verticalSpacing">
-     <number>14</number>
-    </property>
-    <property name="rightMargin">
-     <number>10</number>
-    </property>
-    <property name="bottomMargin">
-     <number>14</number>
-    </property>
+   <property name="leftMargin">
+    <number>24</number>
+   </property>
+   <property name="topMargin">
+    <number>24</number>
+   </property>
+   <property name="rightMargin">
+    <number>24</number>
+   </property>
+   <property name="bottomMargin">
+    <number>20</number>
+   </property>
 
-    <!-- Row 0: Name -->
-    <item row="0" column="0">
-     <widget class="QLabel" name="label">
-      <property name="text"><string>Name</string></property>
-     </widget>
-    </item>
-    <item row="0" column="1">
-     <widget class="QLineEdit" name="nameEdit"/>
-    </item>
+   <item>
+    <layout class="QHBoxLayout" name="nameRow">
+     <property name="spacing">
+      <number>12</number>
+     </property>
+     <item>
+      <widget class="QLabel" name="label">
+       <property name="text"><string>Name</string></property>
+       <property name="minimumSize"><size><width>52</width><height>0</height></size></property>
+       <property name="alignment"><set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="nameEdit"/>
+     </item>
+    </layout>
+   </item>
 
-    <!-- Row 1: Red -->
-    <item row="1" column="0">
-     <widget class="QLabel" name="label_2">
-      <property name="text"><string>Red</string></property>
-     </widget>
-    </item>
-    <item row="1" column="1">
-     <widget class="QSpinBox" name="rspinBox">
-      <property name="maximum"><number>255</number></property>
-     </widget>
-    </item>
+   <item>
+    <widget class="QFrame" name="divider">
+     <property name="frameShape"><enum>QFrame::Shape::HLine</enum></property>
+     <property name="frameShadow"><enum>QFrame::Shadow::Plain</enum></property>
+    </widget>
+   </item>
 
-    <!-- Row 2: Green -->
-    <item row="2" column="0">
-     <widget class="QLabel" name="label_3">
-      <property name="text"><string>Green</string></property>
-     </widget>
-    </item>
-    <item row="2" column="1">
-     <widget class="QSpinBox" name="gspinBox">
-      <property name="maximum"><number>255</number></property>
-     </widget>
-    </item>
+   <item>
+    <layout class="QHBoxLayout" name="redRow">
+     <property name="spacing"><number>12</number></property>
+     <item>
+      <widget class="QLabel" name="label_2">
+       <property name="text"><string>Red</string></property>
+       <property name="minimumSize"><size><width>52</width><height>0</height></size></property>
+       <property name="alignment"><set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set></property>
+       <property name="styleSheet"><string notr="true">color: #f87171;</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="rspinBox">
+       <property name="maximum"><number>255</number></property>
+       <property name="styleSheet"><string notr="true">color: #f87171;</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>0</height></size></property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
 
-    <!-- Row 3: Blue -->
-    <item row="3" column="0">
-     <widget class="QLabel" name="label_4">
-      <property name="text"><string>Blue</string></property>
-     </widget>
-    </item>
-    <item row="3" column="1">
-     <widget class="QSpinBox" name="bspinBox">
-      <property name="maximum"><number>255</number></property>
-     </widget>
-    </item>
+   <item>
+    <layout class="QHBoxLayout" name="greenRow">
+     <property name="spacing"><number>12</number></property>
+     <item>
+      <widget class="QLabel" name="label_3">
+       <property name="text"><string>Green</string></property>
+       <property name="minimumSize"><size><width>52</width><height>0</height></size></property>
+       <property name="alignment"><set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set></property>
+       <property name="styleSheet"><string notr="true">color: #34d399;</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="gspinBox">
+       <property name="maximum"><number>255</number></property>
+       <property name="styleSheet"><string notr="true">color: #34d399;</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>0</height></size></property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
 
-    <!-- Row 4: Colour picker button + preview swatch (in one row) -->
-    <item row="4" column="0">
-     <widget class="QLabel" name="labelColour">
-      <property name="text"><string>Colour</string></property>
-     </widget>
-    </item>
-    <item row="4" column="1">
-     <layout class="QHBoxLayout" name="colourPickerLayout">
-      <item>
-       <widget class="QPushButton" name="pickColourButton">
-        <property name="text"><string>Pick Colour...</string></property>
-        <property name="toolTip"><string>Open colour picker dialog</string></property>
-       </widget>
-      </item>
-      <item>
-       <!-- Colour preview swatch: background set dynamically in .cpp -->
-       <widget class="QLabel" name="colourSwatch">
-        <property name="text"><string/></property>
-        <property name="minimumSize">
-         <size><width>32</width><height>22</height></size>
-        </property>
-        <property name="maximumSize">
-         <size><width>32</width><height>22</height></size>
-        </property>
-        <property name="frameShape">
-         <enum>QFrame::Shape::Box</enum>
-        </property>
-        <property name="toolTip"><string>Current colour preview</string></property>
-       </widget>
-      </item>
-     </layout>
-    </item>
+   <item>
+    <layout class="QHBoxLayout" name="blueRow">
+     <property name="spacing"><number>12</number></property>
+     <item>
+      <widget class="QLabel" name="label_4">
+       <property name="text"><string>Blue</string></property>
+       <property name="minimumSize"><size><width>52</width><height>0</height></size></property>
+       <property name="alignment"><set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set></property>
+       <property name="styleSheet"><string notr="true">color: #60a5fa;</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="bspinBox">
+       <property name="maximum"><number>255</number></property>
+       <property name="styleSheet"><string notr="true">color: #60a5fa;</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>0</height></size></property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
 
-    <!-- Row 5: Visible -->
-    <item row="5" column="0">
-     <widget class="QLabel" name="label_5">
-      <property name="text"><string>Visible</string></property>
-     </widget>
-    </item>
-    <item row="5" column="1">
-     <widget class="QCheckBox" name="visibleCheckBox">
-      <property name="text"><string>isVisible</string></property>
-     </widget>
-    </item>
+   <item>
+    <layout class="QHBoxLayout" name="colourRow">
+     <property name="spacing"><number>12</number></property>
+     <item>
+      <widget class="QLabel" name="labelColour">
+       <property name="text"><string>Colour</string></property>
+       <property name="minimumSize"><size><width>52</width><height>0</height></size></property>
+       <property name="alignment"><set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pickColourButton">
+       <property name="text"><string>Pick Colour...</string></property>
+       <property name="toolTip"><string>Open colour picker dialog</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="colourSwatch">
+       <property name="text"><string/></property>
+       <property name="minimumSize"><size><width>36</width><height>24</height></size></property>
+       <property name="maximumSize"><size><width>36</width><height>24</height></size></property>
+       <property name="frameShape"><enum>QFrame::Shape::Box</enum></property>
+       <property name="toolTip"><string>Current colour preview</string></property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>10</width><height>0</height></size></property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
 
-    <!-- Row 6: OK / Cancel -->
-    <item row="6" column="0" colspan="2">
-     <widget class="QDialogButtonBox" name="buttonBox">
-      <property name="orientation">
-       <enum>Qt::Orientation::Horizontal</enum>
-      </property>
-      <property name="standardButtons">
-       <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
-      </property>
-     </widget>
-    </item>
+   <item>
+    <widget class="QFrame" name="divider2">
+     <property name="frameShape"><enum>QFrame::Shape::HLine</enum></property>
+     <property name="frameShadow"><enum>QFrame::Shadow::Plain</enum></property>
+     <property name="styleSheet"><string notr="true">color: #1e3050; background-color: #1e3050; max-height: 1px; border: none;</string></property>
+    </widget>
+   </item>
 
-   </layout>
-  </widget>
+   <item>
+    <layout class="QHBoxLayout" name="visibleRow">
+     <property name="spacing"><number>12</number></property>
+     <item>
+      <widget class="QLabel" name="label_5">
+       <property name="text"><string>Visible</string></property>
+       <property name="minimumSize"><size><width>52</width><height>0</height></size></property>
+       <property name="alignment"><set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="visibleCheckBox">
+       <property name="text"><string>Show in viewport</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
+     </property>
+    </widget>
+   </item>
+
+  </layout>
  </widget>
  <resources/>
  <connections>
   <connection>
-   <sender>buttonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>OptionDialog</receiver>
-   <slot>accept()</slot>
+   <sender>buttonBox</sender><signal>accepted()</signal>
+   <receiver>OptionDialog</receiver><slot>accept()</slot>
    <hints>
     <hint type="sourcelabel"><x>248</x><y>280</y></hint>
     <hint type="destinationlabel"><x>157</x><y>300</y></hint>
    </hints>
   </connection>
   <connection>
-   <sender>buttonBox</sender>
-   <signal>rejected()</signal>
-   <receiver>OptionDialog</receiver>
-   <slot>reject()</slot>
+   <sender>buttonBox</sender><signal>rejected()</signal>
+   <receiver>OptionDialog</receiver><slot>reject()</slot>
    <hints>
     <hint type="sourcelabel"><x>316</x><y>280</y></hint>
     <hint type="destinationlabel"><x>286</x><y>300</y></hint>
