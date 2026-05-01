@@ -59,8 +59,8 @@ Each part supports five independently toggleable filters, applied in a chained p
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-org>/<your-repo>.git
-cd <your-repo>
+git clone https://github.com/floatycmd/2025_GROUP_5.git
+https://floatycmd.github.io/2025_GROUP_5/
 ```
 
 ### 2. Configure with CMake
