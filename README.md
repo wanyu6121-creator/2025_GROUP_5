@@ -1,142 +1,151 @@
-EEEE2076 Group CAD Viewer
+# EEEE2076 — Software Engineering & VR Project
 
-Overview
-
-The EEEE2076 Group CAD Viewer is a desktop application developed using Qt (GUI) and VTK (rendering engine) with optional OpenVR integration.
-
-It allows users to load and visualise 3D CAD models interactively, with support for both standard desktop viewing and immersive VR environments.
+A Qt/VTK desktop application for loading, visualising, and interactively editing 3D STL models, with optional HTC Vive VR rendering via OpenVR.
 
 ---
 
-Key Features
+## Features
 
-- Load and render CAD models (e.g. STL)
-- Interactive GUI built with Qt
-- Real-time 3D rendering via VTK
-- Model structure management (ModelPart, ModelPartList)
-- Custom settings dialog
-- VR support using OpenVR (SteamVR compatible)
+### 3D model viewer
+- Load individual STL files or entire directories (folder hierarchy maps to the tree view)
+- Interactive tree view listing every loaded part with visibility toggle
+- Edit part name, colour (RGB spin boxes or colour picker), and visibility via the Options dialog
+- Delete individual parts from the tree and renderer
 
----
+### VTK filter pipeline
+Each part supports five independently toggleable filters, applied in a chained pipeline:
 
-System Architecture
+| Filter | Effect |
+|--------|--------|
+| **Clip** | Cuts geometry at the model's X-centre along the −X normal |
+| **Shrink** | Pulls each face toward its centroid (factor 0.6), exposing gaps |
+| **Smooth** | Laplacian smoothing — 20 iterations, softens sharp edges |
+| **Decimate** | Reduces polygon count by 90% using vtkDecimatePro |
+| **Elevation** | Maps Z-height to a blue→red rainbow colour table |
 
+### Lighting
+- Dual-light rig (key + fill) controllable via a slider (0–200% intensity)
+- Lighting syncs between the GUI renderer and the VR thread in real time
 
-UI Layer (Qt)
-    ↓
-Application Logic
-    ↓
-Model Management (ModelPart / ModelPartList)
-    ↓
-Rendering Engine (VTK)
-    ↓
-(Optional) VR Layer (OpenVR)
-
-
----
-
-Project Structure
-
-
-include/        → Header files
-src/            → Source files
-vrbindings/     → OpenVR integration
-icons/          → UI resources
-docs/           → Documentation & images
-
+### VR rendering (`VRRenderThread`)
+- Automatically detects an HTC Vive headset at startup
+  - **VR mode** — renders via `vtkOpenVRRenderWindow`
+  - **Desktop fallback** — renders in a plain window when no headset is connected
+- Skybox background (deep-space environment)
+- Auto-rotation animation (start/stop)
+- Four named view presets: Front, Top, Right Side, Isometric
+- Reset view — snaps all parts back to their original positions
+- Controller trigger drag — grab and reposition individual parts in VR
+- In-VR part selection: highlight, toggle visibility, cycle colour, toggle clip/shrink filters
 
 ---
 
-Requirements
+## Dependencies
 
-Minimum:
+| Dependency | Minimum version | Notes |
+|------------|----------------|-------|
+| CMake | 3.16 | Build system |
+| Qt | 5.15 or 6.x | Widgets, OpenGLWidgets |
+| VTK | 9.x (with OpenVR) | Built with `-DVTK_ENABLE_VR_SUPPORT=ON` |
+| OpenVR SDK | 1.x | Required for VR headset support |
+| C++ compiler | C++17 | MSVC 2019+, GCC 10+, or Clang 12+ |
 
-- Windows 10/11 (64-bit)
-- OpenGL compatible GPU
-- Microsoft Visual C++ Redistributable
-
-For VR Mode:
-
-- VR Headset (e.g. HTC Vive / Oculus)
-- SteamVR installed
-
----
-
-Installation
-
-1. Run the installer:
-
-
-Setup.exe
-
-
-2. Follow installation steps
-
-3. Launch the application from:
-
-C:\Program Files\CADViewer\bin\worksheet6.exe
+> **Note:** VTK must be compiled with `VTK_ENABLE_VR_SUPPORT=ON` and the OpenVR SDK must be installed and discoverable by CMake. If VTK was installed via a package manager it may not include OpenVR support — see the VTK build instructions below.
 
 ---
 
-Usage
+## Building
 
-Desktop Mode
+### 1. Clone the repository
 
-1. Open the application
-2. Load a CAD file (STL)
-3. Rotate / zoom / interact using mouse
+```bash
+git clone https://github.com/<your-org>/<your-repo>.git
+cd <your-repo>
+```
 
-VR Mode
+### 2. Configure with CMake
 
-1. Start SteamVR
-2. Launch the application
-3. Wear headset to view in VR
+```bash
+cmake -S src -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DVTK_DIR=/path/to/vtk/install/lib/cmake/vtk \
+  -DQt6_DIR=/path/to/qt/install/lib/cmake/Qt6
+```
 
----
+On Windows with Visual Studio, open the `build/` folder in Visual Studio after configuration, or use the CMake GUI.
 
-Documentation
+### 3. Build
 
-Doxygen documentation is available online:
+```bash
+cmake --build build --config Release
+```
 
-https://floatycmd.github.io/2025_20799326/
+### 4. Run
 
-Includes:
+```bash
+./build/worksheet6        # Linux / macOS
+build\Release\worksheet6  # Windows
+```
 
-- Class hierarchy
-- File documentation
-- Function reference
-
----
-
-Example Classes
-
-| Class           | Description                |
-| --------------- | -------------------------- |
-| MainWindow    | Main UI controller         |
-| ModelPart     | Represents a CAD component |
-| ModelPartList | Manages model hierarchy    |
-| OptionDialog  | User settings panel        |
+The `vrbindings/` directory is copied automatically into the build folder by CMake. If you are running in VR, ensure SteamVR is running before launching the application.
 
 ---
 
-Authors
+## Repository structure
 
-- Karn Chotamungsa
-- Adrian Okae
-- Wanyu Yin
+```
+.
+├── README.md               ← you are here
+├── .gitignore
+├── src/                    ← all C++ source and CMakeLists.txt
+│   ├── CMakeLists.txt
+│   ├── main.cpp
+│   ├── mainwindow.h / .cpp / .ui
+│   ├── ModelPart.h / .cpp
+│   ├── ModelPartList.h / .cpp
+│   ├── VRRenderThread.h / .cpp
+│   ├── optiondialog.h / .cpp / .ui
+│   ├── icons.qrc
+│   ├── Icon/
+│   └── README.md
+├── docs/                   ← Doxygen configuration and landing page
+│   ├── Doxyfile
+│   ├── mainpage.md
+│   └── README.md
+└── .github/
+    └── workflows/
+        └── docs.yml        ← auto-generates and deploys documentation
+```
 
 ---
 
-Notes
+## Documentation
 
-- All required dependencies (Qt, VTK, OpenVR) are bundled in the installer
-- If the application fails to start, check DLLs in `/bin`
-- VR mode requires SteamVR to be running before launch
+API documentation is published automatically to GitHub Pages on every push to `main`:
+
+**https://\<your-org\>.github.io/\<your-repo\>/**
+
+To build the documentation locally:
+
+```bash
+cd docs
+doxygen Doxyfile
+# Output written to docs/html/index.html
+```
 
 ---
 
-Conclusion
+## Usage overview
 
-- This project demonstrates integration of **GUI (Qt)**, **3D rendering (VTK)**, and **VR technologies (OpenVR)** into a single deployable engineering application.
+1. **Load a model** — use *File > Open File* for a single STL, or *File > Open Directory* to load a whole folder tree.
+2. **Select a part** — click any row in the tree view on the left.
+3. **Edit properties** — click *Options* or right-click for the context menu. Adjust name, colour, and visibility.
+4. **Apply filters** — tick the filter checkboxes in the toolbar. Filters apply immediately to the selected part.
+5. **Start VR** — click *Start VR*. The application will use your Vive headset if SteamVR is running, otherwise a desktop preview window opens.
+6. **Adjust lighting** — drag the light intensity slider. Changes propagate to the VR renderer in real time.
 
 ---
+
+## Authors
+
+EEEE2076 Group — University of Leeds, 2024/25

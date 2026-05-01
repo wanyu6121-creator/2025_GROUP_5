@@ -11,7 +11,7 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
 
-    <!-- 主体区域：TreeView + VTK窗口 -->
+    <!-- 主体区域:TreeView + VTK窗口 -->
     <item>
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
@@ -95,7 +95,7 @@
      </layout>
     </item>
 
-    <!-- 光照强度控制行（创意功能：VR运行时实时调节主光源亮度）-->
+    <!-- 光照强度控制行(创意功能:VR运行时实时调节主光源亮度)-->
     <item>
      <layout class="QHBoxLayout" name="lightLayout">
       <item>
@@ -135,7 +135,7 @@
 
   <widget class="QStatusBar" name="statusbar"/>
 
-  <!-- 工具栏：文字按钮，File/Item 为下拉菜单 -->
+  <!-- 工具栏:文字按钮,File/Item 为下拉菜单 -->
   <widget class="QToolBar" name="toolBar">
    <property name="windowTitle"><string>toolBar</string></property>
    <property name="toolButtonStyle"><enum>Qt::ToolButtonStyle::ToolButtonTextOnly</enum></property>
@@ -145,9 +145,10 @@
    <addaction name="actionStart_VR"/>
    <addaction name="actionStop_VR"/>
    <addaction name="separator"/>
-   <addaction name="actionToggle_Rotate"/>
-   <addaction name="separator"/>
    <addaction name="actionReset_View"/>
+   <addaction name="separator"/>
+   <addaction name="actionStart_Rotate"/>
+   <addaction name="actionStop_Rotate"/>
   </widget>
 
   <!-- ===== Actions ===== -->
@@ -220,6 +221,42 @@
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 
+  <action name="actionSet_View">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/Icons/filesave.png</normaloff>:/icon/Icons/filesave.png
+    </iconset>
+   </property>
+   <property name="text"><string>Set View</string></property>
+   <property name="toolTip"><string>Cycle model orientation: Front / Top / Right Side / Isometric (F9)</string></property>
+   <property name="shortcut"><string>F9</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionViewFront">
+   <property name="text"><string>Front</string></property>
+   <property name="toolTip"><string>Set model to Front view</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionViewTop">
+   <property name="text"><string>Top</string></property>
+   <property name="toolTip"><string>Set model to Top view</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionViewRight">
+   <property name="text"><string>Right Side</string></property>
+   <property name="toolTip"><string>Set model to Right Side view</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionViewIso">
+   <property name="text"><string>Isometric</string></property>
+   <property name="toolTip"><string>Set model to Isometric view</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
   <action name="actionReset_View">
    <property name="icon">
     <iconset resource="icons.qrc">
@@ -232,15 +269,27 @@
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 
-  <action name="actionToggle_Rotate">
+  <action name="actionStart_Rotate">
    <property name="icon">
     <iconset resource="icons.qrc">
      <normaloff>:/icon/Icons/help.png</normaloff>:/icon/Icons/help.png
     </iconset>
    </property>
-   <property name="text"><string>Toggle Rotate</string></property>
-   <property name="toolTip"><string>Start / stop auto-rotation animation (F8)</string></property>
+   <property name="text"><string>Start Rotate</string></property>
+   <property name="toolTip"><string>Start auto-rotation animation (F8)</string></property>
    <property name="shortcut"><string>F8</string></property>
+   <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
+  </action>
+
+  <action name="actionStop_Rotate">
+   <property name="icon">
+    <iconset resource="icons.qrc">
+     <normaloff>:/icon/Icons/help.png</normaloff>:/icon/Icons/help.png
+    </iconset>
+   </property>
+   <property name="text"><string>Stop Rotate</string></property>
+   <property name="toolTip"><string>Stop auto-rotation animation (F9)</string></property>
+   <property name="shortcut"><string>Shift+F8</string></property>
    <property name="menuRole"><enum>QAction::MenuRole::NoRole</enum></property>
   </action>
 

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>300</height>
+    <height>320</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -17,15 +17,15 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Item Options</string>
   </property>
   <widget class="QWidget" name="">
    <property name="geometry">
     <rect>
      <x>30</x>
-     <y>50</y>
-     <width>310</width>
-     <height>265</height>
+     <y>30</y>
+     <width>330</width>
+     <height>270</height>
     </rect>
    </property>
    <layout class="QFormLayout" name="formLayout">
@@ -33,78 +33,108 @@
      <number>28</number>
     </property>
     <property name="verticalSpacing">
-     <number>17</number>
+     <number>14</number>
     </property>
     <property name="rightMargin">
-     <number>50</number>
+     <number>10</number>
     </property>
     <property name="bottomMargin">
      <number>14</number>
     </property>
+
+    <!-- Row 0: Name -->
     <item row="0" column="0">
      <widget class="QLabel" name="label">
-      <property name="text">
-       <string>Name</string>
-      </property>
+      <property name="text"><string>Name</string></property>
      </widget>
     </item>
+    <item row="0" column="1">
+     <widget class="QLineEdit" name="nameEdit"/>
+    </item>
+
+    <!-- Row 1: Red -->
     <item row="1" column="0">
      <widget class="QLabel" name="label_2">
-      <property name="text">
-       <string>Red</string>
-      </property>
+      <property name="text"><string>Red</string></property>
      </widget>
     </item>
     <item row="1" column="1">
      <widget class="QSpinBox" name="rspinBox">
-      <property name="maximum">
-       <number>255</number>
-      </property>
+      <property name="maximum"><number>255</number></property>
      </widget>
     </item>
+
+    <!-- Row 2: Green -->
     <item row="2" column="0">
      <widget class="QLabel" name="label_3">
-      <property name="text">
-       <string>Green</string>
-      </property>
+      <property name="text"><string>Green</string></property>
      </widget>
     </item>
     <item row="2" column="1">
      <widget class="QSpinBox" name="gspinBox">
-      <property name="maximum">
-       <number>255</number>
-      </property>
+      <property name="maximum"><number>255</number></property>
      </widget>
     </item>
+
+    <!-- Row 3: Blue -->
     <item row="3" column="0">
      <widget class="QLabel" name="label_4">
-      <property name="text">
-       <string>Blue</string>
-      </property>
+      <property name="text"><string>Blue</string></property>
      </widget>
     </item>
     <item row="3" column="1">
      <widget class="QSpinBox" name="bspinBox">
-      <property name="maximum">
-       <number>255</number>
-      </property>
+      <property name="maximum"><number>255</number></property>
      </widget>
     </item>
+
+    <!-- Row 4: Colour picker button + preview swatch (in one row) -->
     <item row="4" column="0">
-     <widget class="QLabel" name="label_5">
-      <property name="text">
-       <string>Viaible</string>
-      </property>
+     <widget class="QLabel" name="labelColour">
+      <property name="text"><string>Colour</string></property>
      </widget>
     </item>
     <item row="4" column="1">
-     <widget class="QCheckBox" name="visibleCheckBox">
-      <property name="text">
-       <string>isVisible</string>
-      </property>
+     <layout class="QHBoxLayout" name="colourPickerLayout">
+      <item>
+       <widget class="QPushButton" name="pickColourButton">
+        <property name="text"><string>Pick Colour...</string></property>
+        <property name="toolTip"><string>Open colour picker dialog</string></property>
+       </widget>
+      </item>
+      <item>
+       <!-- Colour preview swatch: background set dynamically in .cpp -->
+       <widget class="QLabel" name="colourSwatch">
+        <property name="text"><string/></property>
+        <property name="minimumSize">
+         <size><width>32</width><height>22</height></size>
+        </property>
+        <property name="maximumSize">
+         <size><width>32</width><height>22</height></size>
+        </property>
+        <property name="frameShape">
+         <enum>QFrame::Shape::Box</enum>
+        </property>
+        <property name="toolTip"><string>Current colour preview</string></property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+
+    <!-- Row 5: Visible -->
+    <item row="5" column="0">
+     <widget class="QLabel" name="label_5">
+      <property name="text"><string>Visible</string></property>
      </widget>
     </item>
-    <item row="5" column="0" colspan="2">
+    <item row="5" column="1">
+     <widget class="QCheckBox" name="visibleCheckBox">
+      <property name="text"><string>isVisible</string></property>
+     </widget>
+    </item>
+
+    <!-- Row 6: OK / Cancel -->
+    <item row="6" column="0" colspan="2">
      <widget class="QDialogButtonBox" name="buttonBox">
       <property name="orientation">
        <enum>Qt::Orientation::Horizontal</enum>
@@ -114,9 +144,7 @@
       </property>
      </widget>
     </item>
-    <item row="0" column="1">
-     <widget class="QLineEdit" name="nameEdit"/>
-    </item>
+
    </layout>
   </widget>
  </widget>
@@ -128,14 +156,8 @@
    <receiver>OptionDialog</receiver>
    <slot>accept()</slot>
    <hints>
-    <hint type="sourcelabel">
-     <x>248</x>
-     <y>254</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>157</x>
-     <y>274</y>
-    </hint>
+    <hint type="sourcelabel"><x>248</x><y>280</y></hint>
+    <hint type="destinationlabel"><x>157</x><y>300</y></hint>
    </hints>
   </connection>
   <connection>
@@ -144,14 +166,8 @@
    <receiver>OptionDialog</receiver>
    <slot>reject()</slot>
    <hints>
-    <hint type="sourcelabel">
-     <x>316</x>
-     <y>260</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>286</x>
-     <y>274</y>
-    </hint>
+    <hint type="sourcelabel"><x>316</x><y>280</y></hint>
+    <hint type="destinationlabel"><x>286</x><y>300</y></hint>
    </hints>
   </connection>
  </connections>

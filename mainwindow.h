@@ -30,12 +30,12 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    /** Constructor — sets up UI, connects signals/slots, initialises VTK renderer.
+    /** Constructor -- sets up UI, connects signals/slots, initialises VTK renderer.
      * @param parent parent widget, nullptr for top-level window
      */
     MainWindow(QWidget* parent = nullptr);
 
-    /** Destructor — stops VR thread if running, frees UI. */
+    /** Destructor -- stops VR thread if running, frees UI. */
     ~MainWindow();
 
 public slots:
@@ -50,10 +50,10 @@ public slots:
      */
     void handleTreeClicked();
 
-    /** File > Open File — opens a single STL file as a child of the selected node. */
+    /** File > Open File -- opens a single STL file as a child of the selected node. */
     void on_actionOpen_File_triggered();
 
-    /** File > Open Directory — recursively loads all STL files from a directory,
+    /** File > Open Directory -- recursively loads all STL files from a directory,
      *  mapping the folder structure to tree parent/child nodes.
      */
     void on_actionOpen_Directory_triggered();
@@ -114,11 +114,23 @@ public slots:
     /** Stop the VR render thread. */
     void handleStopVR();
 
-    /** Toggle model rotation animation in VR. */
-    void handleToggleRotate();
+    /** Start auto-rotation animation in VR. */
+    void handleStartRotate();
 
-    /** Reset the VR camera to its initial position. */
+    /** Stop auto-rotation animation in VR. */
+    void handleStopRotate();
+
+    /** Reset model -- all parts return to original positions and orientation. */
     void handleResetView();
+
+    /** Set model to Front view (pitch=0, yaw=0). */
+    void handleViewFront();
+    /** Set model to Top view (pitch=90, yaw=0). */
+    void handleViewTop();
+    /** Set model to Right Side view (pitch=0, yaw=-90). */
+    void handleViewRight();
+    /** Set model to Isometric view (pitch=30, yaw=45). */
+    void handleViewIso();
 
     /** Light intensity slider changed.
      *  Maps slider value (0-100) to intensity (0.0-2.0) and updates
