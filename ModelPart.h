@@ -4,11 +4,11 @@
  *
  *   Template for model parts that will be added as treeview items.
  *   Supports five independently toggleable VTK filters:
- *     1. Clip      – cuts geometry at x=0
- *     2. Shrink    – pulls cells toward their centroid
- *     3. Smooth    – softens sharp edges (Laplacian smoothing)
- *     4. Decimate  – reduces polygon count
- *     5. Elevation – colours geometry by height using a lookup table
+ *     1. Clip      - cuts geometry at x=0
+ *     2. Shrink    - pulls cells toward their centroid
+ *     3. Smooth    - softens sharp edges (Laplacian smoothing)
+ *     4. Decimate  - reduces polygon count
+ *     5. Elevation - colours geometry by height using a lookup table
  *
  *   P Evans 2022
  */
@@ -28,7 +28,7 @@
 
 /* Filter includes */
 #include <vtkClipDataSet.h>
-#include <vtkShrinkFilter.h>
+#include <vtkShrinkPolyData.h>
 #include <vtkSmoothPolyDataFilter.h>
 #include <vtkDecimatePro.h>
 #include <vtkElevationFilter.h>
@@ -47,7 +47,7 @@ public:
      */
     ModelPart(const QList<QVariant>& data, ModelPart* parent = nullptr);
 
-    /** Destructor — recursively frees all child nodes */
+    /** Destructor -- recursively frees all child nodes */
     ~ModelPart();
 
     /** Add a child node.
@@ -167,7 +167,7 @@ public:
 private:
     /** Reconnect the GUI VTK pipeline based on current filter flags.
      *  Active filters are chained in order:
-     *    STLReader → [Clip] → [Shrink] → [Smooth] → [Decimate] → [Elevation] → Mapper
+     *    STLReader -> [Clip] -> [Shrink] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper
      *  Inactive filters are bypassed by connecting the previous stage directly.
      */
     void updatePipeline();
@@ -184,9 +184,10 @@ private:
     vtkSmartPointer<vtkActor>              actor;          /**< GUI actor */
     vtkColor3<unsigned char>               colour;         /**< current RGB colour */
 
-    /* Filter objects — created in loadSTL(), toggled via flags */
-    vtkSmartPointer<vtkClipDataSet>          clipFilter;     /**< cuts geometry at x=0 */
-    vtkSmartPointer<vtkShrinkFilter>         shrinkFilter;   /**< pulls cells toward centroid */
+    /* Filter objects -- created in loadSTL(), toggled via flags */
+    vtkSmartPointer<vtkClipDataSet>          clipFilter;     /**< cuts geometry at model centre */
+    vtkSmartPointer<vtkPlane>                clipPlane;      /**< the plane used by clipFilter; origin updated to model bounds centre on enable */
+    vtkSmartPointer<vtkShrinkPolyData>       shrinkFilter;   /**< pulls each face toward its centroid, exposing gaps */   /**< pulls cells toward centroid */
     vtkSmartPointer<vtkSmoothPolyDataFilter> smoothFilter;   /**< Laplacian smoothing */
     vtkSmartPointer<vtkCleanPolyData>        cleanFilter;    /**< removes duplicate points before decimation */
     vtkSmartPointer<vtkGeometryFilter>       geometryFilter; /**< converts UnstructuredGrid to PolyData */

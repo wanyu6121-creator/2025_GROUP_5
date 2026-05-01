@@ -4,11 +4,11 @@
  *
  *   Template for model parts that will be added as treeview items.
  *   Implements five independently toggleable VTK filters:
- *     1. Clip      – vtkClipDataSet: cuts at x=0 along -x normal
- *     2. Shrink    – vtkShrinkFilter: pulls cells toward centroid (factor 0.8)
- *     3. Smooth    – vtkSmoothPolyDataFilter: Laplacian smoothing (20 iterations)
- *     4. Decimate  – vtkDecimatePro: reduces polygon count by 50%
- *     5. Elevation – vtkElevationFilter: maps Z height to a rainbow colour table
+ *     1. Clip      - vtkClipDataSet: cuts at x=0 along -x normal
+ *     2. Shrink    - vtkShrinkPolyData: pulls each face toward its centroid (factor 0.6)
+ *     3. Smooth    - vtkSmoothPolyDataFilter: Laplacian smoothing (20 iterations)
+ *     4. Decimate  - vtkDecimatePro: reduces polygon count by 50%
+ *     5. Elevation - vtkElevationFilter: maps Z height to a rainbow colour table
  *
  *   P Evans 2022
  */
@@ -120,20 +120,23 @@ void ModelPart::loadSTL(QString fileName)
     file->Update();
 
     /* ---- Filter 1: Clip ----
-     * Plane at origin with -x normal: keeps everything on the +x side */
-    vtkSmartPointer<vtkPlane> clipPlane = vtkSmartPointer<vtkPlane>::New();
-    clipPlane->SetOrigin(0.0, 0.0, 0.0);
+     * The plane origin is set to the model's X-centre when the filter is
+     * enabled (see setClip()), so the cut always passes through the middle
+     * of the model regardless of where it sits in world space. */
+    clipPlane = vtkSmartPointer<vtkPlane>::New();
+    clipPlane->SetOrigin(0.0, 0.0, 0.0);   /* updated in setClip() */
     clipPlane->SetNormal(-1.0, 0.0, 0.0);
     clipFilter = vtkSmartPointer<vtkClipDataSet>::New();
     clipFilter->SetClipFunction(clipPlane.Get());
 
     /* ---- Filter 2: Shrink ----
-     * Pulls each cell 20% toward its own centroid */
-    shrinkFilter = vtkSmartPointer<vtkShrinkFilter>::New();
-    shrinkFilter->SetShrinkFactor(0.8);
+     * vtkShrinkPolyData pulls each polygon face toward its own centroid,
+     * creating visible gaps between faces (the effect shown in the spec). */
+    shrinkFilter = vtkSmartPointer<vtkShrinkPolyData>::New();
+    shrinkFilter->SetShrinkFactor(0.6);
 
     /* ---- Filter 3: Smooth ----
-     * Laplacian smoothing — 20 iterations softens sharp edges visibly */
+     * Laplacian smoothing -- 20 iterations softens sharp edges visibly */
     smoothFilter = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
     smoothFilter->SetNumberOfIterations(20);
     smoothFilter->SetRelaxationFactor(0.1);
@@ -152,7 +155,7 @@ void ModelPart::loadSTL(QString fileName)
     decimateFilter->PreserveTopologyOn();
 
     /* ---- Filter 5: Elevation ----
-     * Maps Z coordinate to a blue→red rainbow lookup table.
+     * Maps Z coordinate to a blue->red rainbow lookup table.
      * Bounds are set relative to the model's actual Z extent after loading. */
     double bounds[6];
     file->GetOutput()->GetBounds(bounds);
@@ -164,10 +167,10 @@ void ModelPart::loadSTL(QString fileName)
     elevationFilter->SetLowPoint(0.0, 0.0, zMin);
     elevationFilter->SetHighPoint(0.0, 0.0, zMax);
 
-    /* Rainbow lookup table: blue (low) → red (high) */
+    /* Rainbow lookup table: blue (low) -> red (high) */
     elevationLUT = vtkSmartPointer<vtkLookupTable>::New();
     elevationLUT->SetNumberOfTableValues(256);
-    elevationLUT->SetHueRange(0.667, 0.0);  /* blue → red */
+    elevationLUT->SetHueRange(0.667, 0.0);  /* blue -> red */
     elevationLUT->Build();
 
     /* ---- Mapper and actor ----
@@ -191,7 +194,7 @@ void ModelPart::updatePipeline()
 
     /* Build an ordered list of active filter input connections.
      * Each active filter takes the output of the previous stage.
-     * The order is: Clip → Shrink → Smooth → Decimate → Elevation.
+     * The order is: Clip -> Shrink -> Smooth -> Decimate -> Elevation.
      * Inactive filters are simply skipped. */
 
     /* Start from the STL reader output */
@@ -254,6 +257,17 @@ void ModelPart::updatePipeline()
 void ModelPart::setClip(bool enabled)
 {
     isClipped = enabled;
+
+    if (enabled && file && clipPlane) {
+        /* Position the cutting plane at the X-centre of the model's bounding
+         * box so the clip always bisects the model, regardless of where it
+         * sits in world space. */
+        double bounds[6];
+        file->GetOutput()->GetBounds(bounds);
+        double xCentre = (bounds[0] + bounds[1]) * 0.5;
+        clipPlane->SetOrigin(xCentre, 0.0, 0.0);
+    }
+
     /* Smooth filter requires PolyData input; clip outputs UnstructuredGrid.
      * Disable smooth automatically when clip is enabled to avoid a type mismatch. */
     if (enabled && isSmoothed) {
@@ -270,7 +284,7 @@ void ModelPart::setShrink(bool enabled)
 
 void ModelPart::setSmooth(bool enabled)
 {
-    /* Cannot combine smooth with clip (type mismatch — see setClip comment) */
+    /* Cannot combine smooth with clip (type mismatch -- see setClip comment) */
     if (enabled && isClipped) {
         isClipped = false;
     }
@@ -301,14 +315,18 @@ vtkActor* ModelPart::getNewActor()
 
     /* Build an independent VR pipeline mirroring the current GUI state.
      * Uses the same STLReader as the source so no extra file I/O occurs. */
+    double bounds[6];
+    file->GetOutput()->GetBounds(bounds);
+    double xCentre = (bounds[0] + bounds[1]) * 0.5;
+
     vtkSmartPointer<vtkPlane> vrClipPlane = vtkSmartPointer<vtkPlane>::New();
-    vrClipPlane->SetOrigin(0.0, 0.0, 0.0);
+    vrClipPlane->SetOrigin(xCentre, 0.0, 0.0);
     vrClipPlane->SetNormal(-1.0, 0.0, 0.0);
     vtkSmartPointer<vtkClipDataSet> vrClip = vtkSmartPointer<vtkClipDataSet>::New();
     vrClip->SetClipFunction(vrClipPlane.Get());
 
-    vtkSmartPointer<vtkShrinkFilter> vrShrink = vtkSmartPointer<vtkShrinkFilter>::New();
-    vrShrink->SetShrinkFactor(0.8);
+    vtkSmartPointer<vtkShrinkPolyData> vrShrink = vtkSmartPointer<vtkShrinkPolyData>::New();
+    vrShrink->SetShrinkFactor(0.6);
 
     vtkSmartPointer<vtkSmoothPolyDataFilter> vrSmooth = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
     vrSmooth->SetNumberOfIterations(20);
@@ -318,8 +336,6 @@ vtkActor* ModelPart::getNewActor()
     vrDecimate->SetTargetReduction(0.5);
     vrDecimate->PreserveTopologyOn();
 
-    double bounds[6];
-    file->GetOutput()->GetBounds(bounds);
     double zMin = bounds[4], zMax = bounds[5];
     if (zMax - zMin < 1e-6) { zMin -= 1.0; zMax += 1.0; }
     vtkSmartPointer<vtkElevationFilter> vrElevation = vtkSmartPointer<vtkElevationFilter>::New();
