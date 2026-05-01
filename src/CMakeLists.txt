@@ -6,8 +6,7 @@ project(worksheet6 VERSION 0.1 LANGUAGES CXX)
 set(VTK_USE_VULKAN OFF CACHE BOOL "" FORCE)
 set(VTK_ENABLE_VR_SUPPORT ON CACHE BOOL "" FORCE)
 
-set(OpenVR_INCLUDE_DIR "C:/Users/adria/openvr-master/openvr-master/headers")
-set(OpenVR_LIBRARY "C:/Users/adria/openvr-master/openvr-master/lib/win64/openvr_api.lib")
+
 
 # Explicitly specify required VTK components including OpenVR
 find_package(VTK REQUIRED COMPONENTS
