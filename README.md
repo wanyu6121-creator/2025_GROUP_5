@@ -121,10 +121,7 @@ The `vrbindings/` directory is copied automatically into the build folder by CMa
 
 ## Documentation
 
-API documentation is published automatically to GitHub Pages on every push to `main`:
-
-**https://\<your-org\>.github.io/\<your-repo\>/**
-
+API documentation is published automatically to GitHub Pages on every push to `main`
 To build the documentation locally:
 
 ```bash
