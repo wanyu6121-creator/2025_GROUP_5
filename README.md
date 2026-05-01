@@ -148,4 +148,7 @@ doxygen Doxyfile
 
 ## Authors
 
-EEEE2076 Group — University of Leeds, 2024/25
+EEEE2076 Group 5
+Adrian Okae
+Karn Chotamungsa
+Wanyu Yin
