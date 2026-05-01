@@ -25,16 +25,17 @@ jobs:
         run: |
           pwd
           ls -la
-          ls -la html
-          test -f html/index.html
+          ls -la docs
+          ls -la docs/html
+          test -f docs/html/index.html
 
       - name: Add nojekyll
-        run: touch html/.nojekyll
+        run: touch docs/html/.nojekyll
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ./html
+          publish_dir: docs/html
           force_orphan: true
