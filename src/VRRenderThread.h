@@ -38,6 +38,7 @@
 #include <vtkProperty.h>
 #include <vtkSTLReader.h>
 #include <vtkClipDataSet.h>
+#include <vtkCutter.h>
 #include <vtkShrinkPolyData.h>
 #include <vtkSmoothPolyDataFilter.h>
 #include <vtkDecimatePro.h>
@@ -84,6 +85,8 @@ enum VRCommand {
     CMD_SET_LIGHT_INTENSITY= 11,
     CMD_SET_VIEW           = 18, /**< 保存当前相机和Actor位置作为命名快照。
                                   * Save current camera and actor positions as a named snapshot. */
+    CMD_SET_EXPLODED       = 19, /**< 切换全局爆炸视图。
+                                  * Toggle global exploded view. */
     /* 【B方案】VR内手柄和鼠标射线拾取属性修改。
      * Plan B: property editing through VR controller and mouse ray picking. */
     CMD_VR_SELECT_ACTOR    = 12, /**< 选中 actor(高亮显示)。
@@ -109,12 +112,12 @@ enum VRCommand {
  */
 static const int FILTER_CLIP      = 0;  /**< 裁剪滤镜 - 在 x=0 处截断几何体。
                                          * Clip filter - cuts geometry at x=0. */
-static const int FILTER_SHRINK    = 1;  /**< 收缩滤镜 - 将单元拉向质心。
-                                         * Shrink filter - pulls cells toward centroid. */
+static const int FILTER_SHRINK    = 1;  /**< 收缩滤镜 - 围绕对象中心整体缩放。
+                                         * Shrink filter - scales the whole object around its centre. */
 static const int FILTER_SMOOTH    = 2;  /**< 平滑滤镜 - Laplacian 平滑。
                                          * Smooth filter - Laplacian smoothing. */
-static const int FILTER_DECIMATE  = 3;  /**< 抽取滤镜 - 减少 50% 多边形。
-                                         * Decimate filter - 50% polygon reduction. */
+static const int FILTER_DECIMATE  = 3;  /**< 抽取滤镜 - 减少 90% 多边形。
+                                         * Decimate filter - 90% polygon reduction. */
 static const int FILTER_ELEVATION = 4;  /**< 高度滤镜 - Z 高度彩虹着色。
                                          * Elevation filter - Z-height rainbow colouring. */
 static const int FILTER_SLICE     = 5;  /**< 截面滤镜 - 使用裁剪平面显示截面。
@@ -365,13 +368,17 @@ private:
      * @brief 根据当前滤镜状态重建指定Actor的VTK pipeline
      * @brief Rebuild the specified actor's VTK pipeline based on current filter states
      *
-     * pipeline路由:STLReader -> [ClipFilter] -> [ShrinkFilter] -> Mapper
-     * Pipeline route: STLReader -> [ClipFilter] -> [ShrinkFilter] -> Mapper
+     * pipeline路由:STLReader -> [Clip] -> [Slice] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper
+     * Pipeline route: STLReader -> [Clip] -> [Slice] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper
      *
      * @param idx Actor在actorList中的索引
      * @param idx actor index in actorList
      */
     void rebuildPipeline(int idx);
+
+    /** 应用或取消VR/桌面预览中的爆炸视图。
+     *  Apply or clear exploded view in VR/desktop preview. */
+    void applyExplodedView(bool enabled);
 
     /**
      * @brief 初始化VR场景天空盒(Skybox)
@@ -439,6 +446,7 @@ private:
     QList<vtkSmartPointer<vtkSTLReader>>      readerList;
     QList<vtkSmartPointer<vtkDataSetMapper>>  mapperList;
     QList<vtkSmartPointer<vtkClipDataSet>>    clipFilters;
+    QList<vtkSmartPointer<vtkCutter>>         sliceFilters;
     QList<vtkSmartPointer<vtkShrinkPolyData>> shrinkFilters;
     QList<vtkSmartPointer<vtkSmoothPolyDataFilter>> smoothFilters;  /**< Laplacian 平滑滤镜。
                                                                      * Laplacian smooth filter. */
@@ -462,6 +470,8 @@ private:
                                                                * Elevation filter active. */
     QList<bool>                               sliceState;     /**< 截面滤镜是否激活。
                                                                * Slice filter active. */
+    bool                                      explodedState;  /**< 爆炸视图是否启用。
+                                                               * Exploded view active. */
 
     /* ---- 【B方案】VR内选中状态 ----
      *      Plan B: in-VR selection state ---- */

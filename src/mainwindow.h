@@ -138,6 +138,13 @@ public slots:
      */
     void handleSliceToggle(bool checked);
 
+    /** 切换爆炸视图,将所有已加载零件从场景中心向外分离。
+     *  Toggle exploded view, spreading all loaded parts away from the scene centre.
+     * @param checked 复选框是否被勾选
+     * @param checked True if checkbox was just ticked
+     */
+    void handleExplodedToggle(bool checked);
+
     /* ---- VR控制
      *      VR control ---- */
 
@@ -231,6 +238,14 @@ private:
      *  Sync a filter state for a part subtree to the VR thread. */
     void syncVRFilterRecursive(ModelPart* part, int filterType, bool enabled);
 
+    /** 收集已加载STL的零件,用于爆炸视图。
+     *  Collect loaded STL parts for exploded view. */
+    void collectLoadedParts(ModelPart* part, QList<ModelPart*>& parts) const;
+
+    /** 应用或取消GUI爆炸视图并同步到VR。
+     *  Apply or clear GUI exploded view and sync it to VR. */
+    void applyExplodedView(bool enabled);
+
     Ui::MainWindow*                              ui;            /**< Qt生成的UI对象
                                                                  * Qt-generated UI object */
     ModelPartList*                               partList;      /**< 树模型
@@ -244,6 +259,9 @@ private:
                                      * VR render thread, nullptr when not running */
     bool             isVRRotating;  /**< 当前旋转动画状态
                                      * Current rotation animation state */
+
+    bool             isExploded;    /**< 爆炸视图是否启用
+                                     * Whether exploded view is enabled */
 
     QMap<ModelPart*, int> actorIndexMap; /**< ModelPart指针到VR Actor索引的映射
                                           * Maps ModelPart* to VR actor index */

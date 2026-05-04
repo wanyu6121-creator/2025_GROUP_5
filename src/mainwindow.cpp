@@ -15,7 +15,9 @@
 #include <QDirIterator>
 #include <QToolButton>
 #include <QMenu>
+#include <QVector3D>
 #include <functional>
+#include <algorithm>
 #include "optiondialog.h"
 
 #include <vtkSmartPointer.h>
@@ -165,6 +167,7 @@ MainWindow::MainWindow(QWidget* parent)
     , ui(new Ui::MainWindow)
     , vrThread(nullptr)
     , isVRRotating(false)
+    , isExploded(false)
 {
     ui->setupUi(this);
 
@@ -308,8 +311,6 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, nowClipped);
-        if (nowClipped)
-            syncVRFilterRecursive(part, FILTER_SMOOTH, false);
         syncVRFilterRecursive(part, FILTER_CLIP, nowClipped);
         updateRender();
         renderWindow->Render();
@@ -335,8 +336,6 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, nowShrunk);
-        if (nowShrunk)
-            syncVRFilterRecursive(part, FILTER_SMOOTH, false);
         syncVRFilterRecursive(part, FILTER_SHRINK, nowShrunk);
         updateRender();
         renderWindow->Render();
@@ -362,11 +361,6 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, now);
-        if (now) {
-            syncVRFilterRecursive(part, FILTER_CLIP, false);
-            syncVRFilterRecursive(part, FILTER_SLICE, false);
-            syncVRFilterRecursive(part, FILTER_SHRINK, false);
-        }
         syncVRFilterRecursive(part, FILTER_SMOOTH, now);
         updateRender();
         renderWindow->Render();
@@ -433,6 +427,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(ui->checkBoxDecimate,  &QCheckBox::toggled, this, &MainWindow::handleDecimateToggle);
     connect(ui->checkBoxElevation, &QCheckBox::toggled, this, &MainWindow::handleElevationToggle);
     connect(ui->checkBoxSlice,     &QCheckBox::toggled, this, &MainWindow::handleSliceToggle);
+    connect(ui->checkBoxExploded,  &QCheckBox::toggled, this, &MainWindow::handleExplodedToggle);
 
     /* ---- 光照强度滑块连接
      *      Light intensity slider connection ---- */
@@ -445,21 +440,6 @@ MainWindow::MainWindow(QWidget* parent)
      *      Initialise tree view and tree model ---- */
     this->partList = new ModelPartList("PartsList");
     ui->treeView->setModel(this->partList);
-
-    /* 添加占位节点,使布局在加载STL前可见
-     * Add placeholder nodes so the layout is visible before STL files are loaded */
-    ModelPart* rootItem = this->partList->getRootItem();
-    for (int i = 0; i < 3; i++) {
-        QString name    = QString("TopLevel %1").arg(i);
-        QString visible = "true";
-        ModelPart* childItem = new ModelPart({ name, visible, 255, 255, 255 });
-        rootItem->appendChild(childItem);
-        for (int j = 0; j < 5; j++) {
-            QString subName = QString("Item %1,%2").arg(i).arg(j);
-            ModelPart* childChildItem = new ModelPart({ subName, visible, 255, 255, 255 });
-            childItem->appendChild(childChildItem);
-        }
-    }
 
     /* ---- 初始化VTK渲染管线
      *      Initialise VTK render pipeline ---- */
@@ -577,6 +557,7 @@ void MainWindow::handleStartVR()
      * Sync the current light intensity slider value to the VR thread's initial state */
     double initIntensity = ui->sliderLightIntensity->value() / 100.0 * 2.0;
     vrThread->issueCommand(CMD_SET_LIGHT_INTENSITY, initIntensity);
+    vrThread->issueCommand(CMD_SET_EXPLODED, isExploded ? 1.0 : 0.0);
 
     vrThread->start();
     emit statusUpdateMessage("VR started! Put on your headset.", 0);
@@ -872,6 +853,77 @@ int MainWindow::getActorIndex(ModelPart* part) const
     return actorIndexMap.value(part, -1);
 }
 
+void MainWindow::collectLoadedParts(ModelPart* part, QList<ModelPart*>& parts) const
+{
+    if (!part) return;
+    if (part->getActor()) parts.append(part);
+    for (int i = 0; i < part->childCount(); ++i)
+        collectLoadedParts(part->child(i), parts);
+}
+
+void MainWindow::applyExplodedView(bool enabled)
+{
+    isExploded = enabled;
+
+    QList<ModelPart*> parts;
+    collectLoadedParts(partList->getRootItem(), parts);
+
+    for (ModelPart* part : parts) {
+        if (part && part->getActor()) part->getActor()->SetPosition(0.0, 0.0, 0.0);
+    }
+
+    if (enabled && !parts.isEmpty()) {
+        double sceneBounds[6] = { 1e30, -1e30, 1e30, -1e30, 1e30, -1e30 };
+        QList<QVector3D> centres;
+        centres.reserve(parts.size());
+
+        for (ModelPart* part : parts) {
+            vtkSmartPointer<vtkActor> actor = part->getActor();
+            double b[6];
+            actor->GetBounds(b);
+            sceneBounds[0] = std::min(sceneBounds[0], b[0]);
+            sceneBounds[1] = std::max(sceneBounds[1], b[1]);
+            sceneBounds[2] = std::min(sceneBounds[2], b[2]);
+            sceneBounds[3] = std::max(sceneBounds[3], b[3]);
+            sceneBounds[4] = std::min(sceneBounds[4], b[4]);
+            sceneBounds[5] = std::max(sceneBounds[5], b[5]);
+            centres.append(QVector3D((b[0] + b[1]) * 0.5,
+                                     (b[2] + b[3]) * 0.5,
+                                     (b[4] + b[5]) * 0.5));
+        }
+
+        QVector3D sceneCentre((sceneBounds[0] + sceneBounds[1]) * 0.5,
+                              (sceneBounds[2] + sceneBounds[3]) * 0.5,
+                              (sceneBounds[4] + sceneBounds[5]) * 0.5);
+        double extentX = sceneBounds[1] - sceneBounds[0];
+        double extentY = sceneBounds[3] - sceneBounds[2];
+        double extentZ = sceneBounds[5] - sceneBounds[4];
+        double distance = std::max({ extentX, extentY, extentZ }) * 0.45;
+        if (distance < 1e-6) distance = 50.0;
+
+        for (int i = 0; i < parts.size(); ++i) {
+            vtkSmartPointer<vtkActor> actor = parts[i]->getActor();
+            QVector3D direction = centres[i] - sceneCentre;
+            if (direction.lengthSquared() < 1e-6) {
+                constexpr double pi = 3.14159265358979323846;
+                double angle = (parts.size() == 1) ? 0.0 : (2.0 * pi * i / parts.size());
+                direction = QVector3D(std::cos(angle), std::sin(angle), 0.25);
+            }
+            direction.normalize();
+            actor->SetPosition(direction.x() * distance,
+                               direction.y() * distance,
+                               direction.z() * distance);
+        }
+    }
+
+    renderer->ResetCameraClippingRange();
+    updateRender();
+    renderWindow->Render();
+
+    if (vrThread && vrThread->isRunning()) {
+        vrThread->issueCommand(CMD_SET_EXPLODED, enabled ? 1.0 : 0.0);
+    }
+}
 void MainWindow::syncVRFilterRecursive(ModelPart* part, int filterType, bool enabled)
 {
     if (!part || !vrThread || !vrThread->isRunning()) return;
@@ -959,13 +1011,7 @@ void MainWindow::on_actionOpen_File_triggered()
 
     if (fileNames.isEmpty()) return;
 
-    QModelIndex index = ui->treeView->currentIndex();
-    if (!index.isValid()) {
-        emit statusUpdateMessage("Please select a parent item in the tree first!", 0);
-        return;
-    }
-
-    ModelPart* selectedPart = static_cast<ModelPart*>(index.internalPointer());
+    ModelPart* selectedPart = partList->getRootItem();
     int loadedCount = 0;
 
     for (const QString& fileName : qAsConst(fileNames)) {
@@ -1000,6 +1046,7 @@ void MainWindow::on_actionOpen_File_triggered()
 
     ui->treeView->model()->layoutChanged();
     updateRender();
+    if (isExploded) applyExplodedView(true);
     renderer->ResetCamera();
     renderWindow->Render();
     emit statusUpdateMessage(QString("Loaded %1 STL file(s)").arg(loadedCount), 0);
@@ -1105,24 +1152,23 @@ static void applyFilterAll(ModelPart* part, bool en,
         applyFilterAll(part->child(i), en, setter);
 }
 
+void MainWindow::handleExplodedToggle(bool checked)
+{
+    applyExplodedView(checked);
+    emit statusUpdateMessage(
+        checked ? "Exploded view applied to all parts" : "Exploded view removed", 2000);
+}
 void MainWindow::handleClipToggle(bool checked)
 {
     /* 对所有零件递归应用裁剪滤镜状态
      * Recursively apply clip filter state to all parts */
     applyFilterAll(partList->getRootItem(), checked, &ModelPart::setClip);
-    if (checked) {
-        ui->checkBoxSmooth->blockSignals(true);
-        ui->checkBoxSmooth->setChecked(false);
-        ui->checkBoxSmooth->blockSignals(false);
-    }
     updateRender();
     renderWindow->Render();
 
     /* 同步到VR线程中所有已注册的Actor
      * Sync to all registered actors in the VR thread */
     if (vrThread && vrThread->isRunning()) {
-        if (checked)
-            syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
         syncVRFilterRecursive(partList->getRootItem(), FILTER_CLIP, checked);
     }
     emit statusUpdateMessage(
@@ -1132,17 +1178,10 @@ void MainWindow::handleClipToggle(bool checked)
 void MainWindow::handleShrinkToggle(bool checked)
 {
     applyFilterAll(partList->getRootItem(), checked, &ModelPart::setShrink);
-    if (checked) {
-        ui->checkBoxSmooth->blockSignals(true);
-        ui->checkBoxSmooth->setChecked(false);
-        ui->checkBoxSmooth->blockSignals(false);
-    }
     updateRender();
     renderWindow->Render();
 
     if (vrThread && vrThread->isRunning()) {
-        if (checked)
-            syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
         syncVRFilterRecursive(partList->getRootItem(), FILTER_SHRINK, checked);
     }
     emit statusUpdateMessage(
@@ -1153,25 +1192,6 @@ void MainWindow::handleSmoothToggle(bool checked)
 {
     applyFilterAll(partList->getRootItem(), checked, &ModelPart::setSmooth);
 
-    /* Smooth与Clip不兼容:启用Smooth时全局关闭Clip复选框
-     * Smooth and Clip are incompatible: disable Clip checkbox globally when Smooth is enabled */
-    if (checked) {
-        ui->checkBoxClip->blockSignals(true);
-        ui->checkBoxClip->setChecked(false);
-        ui->checkBoxClip->blockSignals(false);
-        ui->checkBoxSlice->blockSignals(true);
-        ui->checkBoxSlice->setChecked(false);
-        ui->checkBoxSlice->blockSignals(false);
-        ui->checkBoxShrink->blockSignals(true);
-        ui->checkBoxShrink->setChecked(false);
-        ui->checkBoxShrink->blockSignals(false);
-        applyFilterAll(partList->getRootItem(), false, &ModelPart::setClip);
-        applyFilterAll(partList->getRootItem(), false, &ModelPart::setSlice);
-        applyFilterAll(partList->getRootItem(), false, &ModelPart::setShrink);
-        syncVRFilterRecursive(partList->getRootItem(), FILTER_CLIP, false);
-        syncVRFilterRecursive(partList->getRootItem(), FILTER_SLICE, false);
-        syncVRFilterRecursive(partList->getRootItem(), FILTER_SHRINK, false);
-    }
     updateRender();
     renderWindow->Render();
 
@@ -1213,12 +1233,6 @@ void MainWindow::handleElevationToggle(bool checked)
  * falls back to global application if nothing is selected */
 void MainWindow::handleSliceToggle(bool checked)
 {
-    if (checked) {
-        ui->checkBoxSmooth->blockSignals(true);
-        ui->checkBoxSmooth->setChecked(false);
-        ui->checkBoxSmooth->blockSignals(false);
-    }
-
     auto applySlice = [](ModelPart* part, bool en, auto& self) -> void {
         if (!part) return;
         part->setSlice(en);
@@ -1230,13 +1244,9 @@ void MainWindow::handleSliceToggle(bool checked)
     if (index.isValid()) {
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         applySlice(part, checked, applySlice);
-        if (checked)
-            syncVRFilterRecursive(part, FILTER_SMOOTH, false);
         syncVRFilterRecursive(part, FILTER_SLICE, checked);
     } else {
         applySlice(partList->getRootItem(), checked, applySlice);
-        if (checked)
-            syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
         syncVRFilterRecursive(partList->getRootItem(), FILTER_SLICE, checked);
     }
     updateRender();
@@ -1272,43 +1282,11 @@ void MainWindow::on_actionOpen_Directory_triggered()
 
     if (rootDir.isEmpty()) return;
 
-    /* 为此根目录创建顶级父节点
-     * Create a top-level parent node for this root directory */
     QDir dir(rootDir);
-    ModelPart* rootItem  = partList->getRootItem();
-    QString    dirName   = dir.dirName().isEmpty() ? rootDir : dir.dirName();
-    ModelPart* dirRoot   = new ModelPart({ dirName, "true", 200, 200, 200 });
-    rootItem->appendChild(dirRoot);
+    ModelPart* rootItem = partList->getRootItem();
+    QString dirName = dir.dirName().isEmpty() ? rootDir : dir.dirName();
 
     int loadedCount = 0;
-
-    /* 递归辅助lambda:根据相对路径构建或复用中间目录节点。
-     * 避免为同一子目录创建重复节点。
-     * Recursive helper lambda: build or reuse intermediate directory nodes.
-     * Avoids creating duplicate nodes for the same subdirectory. */
-    std::function<ModelPart*(ModelPart*, const QStringList&, int)> ensurePath;
-    ensurePath = [&](ModelPart* parent, const QStringList& parts, int depth) -> ModelPart*
-    {
-        if (depth >= parts.size() - 1)  /* 最后一段是文件名,由调用者处理
-                                         * Last segment is filename, handled by caller */
-            return parent;
-
-        const QString& seg = parts[depth];
-
-        /* 查找是否已有同名子节点(避免重复)
-         * Check if a child with this name already exists (avoid duplicates) */
-        for (int i = 0; i < parent->childCount(); ++i) {
-            ModelPart* child = parent->child(i);
-            if (child->data(0).toString() == seg)
-                return ensurePath(child, parts, depth + 1);
-        }
-
-        /* 不存在则新建目录节点
-         * Create a new directory node if it doesn't exist */
-        ModelPart* node = new ModelPart({ seg, "true", 180, 180, 180 });
-        parent->appendChild(node);
-        return ensurePath(node, parts, depth + 1);
-    };
 
     /* 递归遍历所有.stl文件
      * Recursively traverse all .stl files */
@@ -1321,21 +1299,11 @@ void MainWindow::on_actionOpen_Directory_triggered()
         QString filePath = it.next();
         QFileInfo fi(filePath);
 
-        /* 统一使用正斜杠(兼容Windows的反斜杠和Linux的正斜杠)
-         * Normalise to forward slashes (compatible with Windows backslash and Linux forward slash) */
-        QString relPath = dir.relativeFilePath(filePath);
-        relPath = QDir::fromNativeSeparators(relPath);
-        QStringList parts = relPath.split('/', Qt::SkipEmptyParts);
-
-        /* 找到或创建中间目录节点
-         * Find or create intermediate directory nodes */
-        ModelPart* parentNode = ensurePath(dirRoot, parts, 0);
-
-        /* 创建叶节点(文件)并加载STL
-         * Create leaf node (file) and load the STL */
+        /* 创建对象节点并加载STL,侧边栏只显示已加载对象。
+         * Create an object node and load the STL; the sidebar shows only loaded objects. */
         QString    fileName = fi.fileName();
         ModelPart* fileNode = new ModelPart({ fileName, "true", 255, 255, 255 });
-        parentNode->appendChild(fileNode);
+        rootItem->appendChild(fileNode);
         fileNode->loadSTL(filePath);
 
         /* VR线程运行时动态推送Actor
@@ -1364,6 +1332,7 @@ void MainWindow::on_actionOpen_Directory_triggered()
     ui->treeView->expandAll();
 
     updateRender();
+    if (isExploded) applyExplodedView(true);
     renderer->ResetCamera();
     renderWindow->Render();
 
@@ -1371,12 +1340,6 @@ void MainWindow::on_actionOpen_Directory_triggered()
         emit statusUpdateMessage(
             QString("Loaded %1 STL file(s) from: %2").arg(loadedCount).arg(dirName), 0);
     } else {
-        /* 目录内无STL文件:移除刚才创建的空父节点并提示用户
-         * No STL files found: remove the empty parent node just created and inform the user */
-        QModelIndex rootNodeIndex = partList->index(
-            rootItem->childCount() - 1, 0, QModelIndex());
-        partList->removeItem(rootNodeIndex);
-        ui->treeView->model()->layoutChanged();
         emit statusUpdateMessage("No STL files found in the selected directory.", 3000);
     }
 }

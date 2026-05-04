@@ -221,7 +221,7 @@ QMenu::separator { height: 1px; background: #1e3050; margin: 3px 0px; }
         </property>
        </widget>
       </item>
-      <item><widget class="QCheckBox" name="checkBoxSlice"><property name="toolTip"><string>Show cross-section slices for selected part</string></property><property name="text"><string>Slice</string></property></widget></item><item>
+      <item><widget class="QCheckBox" name="checkBoxSlice"><property name="toolTip"><string>Show cross-section slices for selected part</string></property><property name="text"><string>Slice</string></property></widget></item><item><widget class="QCheckBox" name="checkBoxExploded"><property name="toolTip"><string>Spread all loaded parts away from the scene centre</string></property><property name="text"><string>Explode</string></property></widget></item><item>
        <spacer name="filterSpacer">
         <property name="orientation">
          <enum>Qt::Orientation::Horizontal</enum>

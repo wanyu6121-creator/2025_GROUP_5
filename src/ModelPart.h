@@ -10,8 +10,8 @@
  *   Supports five independently toggleable VTK filters:
  *     1. Clip      - 在模型X轴中心处截断几何体
  *                    Cuts geometry at the model's X-centre
- *     2. Shrink    - 将每个面向其质心收缩,产生间隙效果
- *                    Pulls each face toward its centroid, creating visible gaps
+ *     2. Shrink    - 围绕对象中心整体缩小零件
+ *                    Scales the whole part down around its centre
  *     3. Smooth    - Laplacian平滑,软化锐边
  *                    Laplacian smoothing, softens sharp edges
  *     4. Decimate  - 减少多边形数量(减少90%)
@@ -38,6 +38,7 @@
 /* 滤镜头文件
  * Filter header files */
 #include <vtkClipDataSet.h>
+#include <vtkCutter.h>
 #include <vtkShrinkPolyData.h>
 #include <vtkSmoothPolyDataFilter.h>
 #include <vtkDecimatePro.h>
@@ -183,8 +184,8 @@ public:
      */
     void setClip(bool enabled);
 
-    /** 启用或禁用收缩滤镜(将每个面向其质心收缩)。
-     *  Enable or disable the shrink filter (pulls each face toward its centroid).
+    /** 启用或禁用收缩滤镜(围绕对象中心整体缩小零件)。
+     *  Enable or disable the shrink filter (scales the whole part around its centre).
      * @param enabled true=启用
      * true to apply
      */
@@ -192,8 +193,8 @@ public:
 
     /** 启用或禁用平滑滤镜(Laplacian平滑,20次迭代)。
      *  Enable or disable the smooth filter (Laplacian smoothing, 20 iterations).
-     *  注意:与Clip滤镜不兼容(类型不匹配),启用Smooth时自动禁用Clip。
-     *  Note: incompatible with Clip filter (type mismatch); enabling Smooth disables Clip automatically.
+     *  Clip或Slice在前时会先转换为PolyData以保持管线兼容。
+     *  Converts Clip or Slice output to PolyData first to keep the pipeline compatible.
      * @param enabled true=启用
      * true to apply
      */
@@ -229,7 +230,7 @@ public:
      * @param enabled true=启用
      * true to apply
      */
-    void setSlice(bool enabled) { if (enabled) isSmoothed = false; isSliced = enabled; updatePipeline(); }
+    void setSlice(bool enabled) { isSliced = enabled; updatePipeline(); }
     bool getSlice() { return isSliced; } /**< @return 截面视图是否激活
                                           * True if slice view active */
 
@@ -238,7 +239,7 @@ private:
      *  Reconnect the GUI VTK pipeline based on current filter flags.
      *  活跃滤镜按以下顺序链接:
      *  Active filters are chained in order:
-     *    STLReader -> [Clip] -> [Shrink] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper
+     *    STLReader -> [Clip] -> [Slice] -> [Smooth] -> [Decimate] -> [Elevation] -> Mapper
      *  未激活的滤镜被直接跳过,前一级直接连接到下一级。
      *  Inactive filters are bypassed — the previous stage connects directly to the next.
      */
@@ -271,8 +272,10 @@ private:
                                                               * Cuts geometry at model X-centre */
     vtkSmartPointer<vtkPlane>                clipPlane;      /**< 裁剪平面,启用时原点更新为模型边界中心
                                                               * Clip plane; origin updated to model bounds centre on enable */
-    vtkSmartPointer<vtkShrinkPolyData>       shrinkFilter;   /**< 将每个面向其质心收缩,产生可见间隙
-                                                              * Pulls each face toward centroid, exposing gaps */
+    vtkSmartPointer<vtkCutter>               sliceFilter;    /**< 使用同一中心平面生成截面轮廓
+                                                              * Creates a cross-section contour on the same centre plane */
+    vtkSmartPointer<vtkShrinkPolyData>       shrinkFilter;   /**< 旧的收缩滤镜槽位,当前收缩由Actor整体缩放实现
+                                                              * Legacy shrink filter slot; current shrink uses whole-actor scaling */
     vtkSmartPointer<vtkSmoothPolyDataFilter> smoothFilter;   /**< Laplacian平滑
                                                               * Laplacian smoothing */
     vtkSmartPointer<vtkCleanPolyData>        cleanFilter;    /**< 在抽取前合并重复点
