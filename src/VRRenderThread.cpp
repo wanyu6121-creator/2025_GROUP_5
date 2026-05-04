@@ -814,12 +814,14 @@ void VRRenderThread::runDesktopMode()
                 /* 切换截面滤镜
                  * Toggle slice filter */
                 sliceState[si] = !sliceState[si];
+                if (sliceState[si]) smoothState[si] = false;
                 rebuildPipeline(si);
                 break;
             case 'k': case 'K':
                 /* 切换收缩滤镜
                  * Toggle shrink filter */
                 shrinkState[si] = !shrinkState[si];
+                if (shrinkState[si]) smoothState[si] = false;
                 rebuildPipeline(si);
                 break;
             case 'c': case 'C': {
@@ -1196,12 +1198,28 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
 
         /* 更新对应滤镜状态标志
          * Update the corresponding filter state flag */
-        if (filterType == FILTER_CLIP)      clipState[idx]      = enabled;
-        if (filterType == FILTER_SHRINK)    shrinkState[idx]    = enabled;
-        if (filterType == FILTER_SMOOTH)    smoothState[idx]    = enabled;
+        if (filterType == FILTER_CLIP) {
+            clipState[idx] = enabled;
+            if (enabled) smoothState[idx] = false;
+        }
+        if (filterType == FILTER_SHRINK) {
+            shrinkState[idx] = enabled;
+            if (enabled) smoothState[idx] = false;
+        }
+        if (filterType == FILTER_SMOOTH) {
+            smoothState[idx] = enabled;
+            if (enabled) {
+                clipState[idx] = false;
+                shrinkState[idx] = false;
+                sliceState[idx] = false;
+            }
+        }
         if (filterType == FILTER_DECIMATE)  decimateState[idx]  = enabled;
         if (filterType == FILTER_ELEVATION) elevationState[idx] = enabled;
-        if (filterType == FILTER_SLICE)     sliceState[idx]     = enabled;
+        if (filterType == FILTER_SLICE) {
+            sliceState[idx] = enabled;
+            if (enabled) smoothState[idx] = false;
+        }
         rebuildPipeline(idx);
         break;
     }
@@ -1307,12 +1325,28 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
 
         if (idx < 0 || idx >= actorList.size()) break;
 
-        if (filterType == FILTER_CLIP)      clipState[idx]      = enabled;
-        if (filterType == FILTER_SHRINK)    shrinkState[idx]    = enabled;
-        if (filterType == FILTER_SMOOTH)    smoothState[idx]    = enabled;
+        if (filterType == FILTER_CLIP) {
+            clipState[idx] = enabled;
+            if (enabled) smoothState[idx] = false;
+        }
+        if (filterType == FILTER_SHRINK) {
+            shrinkState[idx] = enabled;
+            if (enabled) smoothState[idx] = false;
+        }
+        if (filterType == FILTER_SMOOTH) {
+            smoothState[idx] = enabled;
+            if (enabled) {
+                clipState[idx] = false;
+                shrinkState[idx] = false;
+                sliceState[idx] = false;
+            }
+        }
         if (filterType == FILTER_DECIMATE)  decimateState[idx]  = enabled;
         if (filterType == FILTER_ELEVATION) elevationState[idx] = enabled;
-        if (filterType == FILTER_SLICE)     sliceState[idx]     = enabled;
+        if (filterType == FILTER_SLICE) {
+            sliceState[idx] = enabled;
+            if (enabled) smoothState[idx] = false;
+        }
         rebuildPipeline(idx);
         break;
     }
@@ -1377,6 +1411,7 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
         int si = selectedActorIndex;
         if (si >= 0 && si < actorList.size()) {
             sliceState[si] = !sliceState[si];
+            if (sliceState[si]) smoothState[si] = false;
             rebuildPipeline(si);
         }
         break;
@@ -1385,6 +1420,7 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
         int si = selectedActorIndex;
         if (si >= 0 && si < actorList.size()) {
             shrinkState[si] = !shrinkState[si];
+            if (shrinkState[si]) smoothState[si] = false;
             rebuildPipeline(si);
         }
         break;

@@ -308,9 +308,9 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, nowClipped);
-        syncVRFilterRecursive(part, FILTER_CLIP, nowClipped);
         if (nowClipped)
             syncVRFilterRecursive(part, FILTER_SMOOTH, false);
+        syncVRFilterRecursive(part, FILTER_CLIP, nowClipped);
         updateRender();
         renderWindow->Render();
         emit statusUpdateMessage(
@@ -335,6 +335,8 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, nowShrunk);
+        if (nowShrunk)
+            syncVRFilterRecursive(part, FILTER_SMOOTH, false);
         syncVRFilterRecursive(part, FILTER_SHRINK, nowShrunk);
         updateRender();
         renderWindow->Render();
@@ -360,11 +362,12 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, now);
-        syncVRFilterRecursive(part, FILTER_SMOOTH, now);
         if (now) {
             syncVRFilterRecursive(part, FILTER_CLIP, false);
             syncVRFilterRecursive(part, FILTER_SLICE, false);
+            syncVRFilterRecursive(part, FILTER_SHRINK, false);
         }
+        syncVRFilterRecursive(part, FILTER_SMOOTH, now);
         updateRender();
         renderWindow->Render();
         emit statusUpdateMessage(
@@ -1118,9 +1121,9 @@ void MainWindow::handleClipToggle(bool checked)
     /* 同步到VR线程中所有已注册的Actor
      * Sync to all registered actors in the VR thread */
     if (vrThread && vrThread->isRunning()) {
-        syncVRFilterRecursive(partList->getRootItem(), FILTER_CLIP, checked);
         if (checked)
             syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_CLIP, checked);
     }
     emit statusUpdateMessage(
         checked ? "Clip applied to all parts" : "Clip removed from all parts", 2000);
@@ -1129,10 +1132,17 @@ void MainWindow::handleClipToggle(bool checked)
 void MainWindow::handleShrinkToggle(bool checked)
 {
     applyFilterAll(partList->getRootItem(), checked, &ModelPart::setShrink);
+    if (checked) {
+        ui->checkBoxSmooth->blockSignals(true);
+        ui->checkBoxSmooth->setChecked(false);
+        ui->checkBoxSmooth->blockSignals(false);
+    }
     updateRender();
     renderWindow->Render();
 
     if (vrThread && vrThread->isRunning()) {
+        if (checked)
+            syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
         syncVRFilterRecursive(partList->getRootItem(), FILTER_SHRINK, checked);
     }
     emit statusUpdateMessage(
@@ -1152,10 +1162,15 @@ void MainWindow::handleSmoothToggle(bool checked)
         ui->checkBoxSlice->blockSignals(true);
         ui->checkBoxSlice->setChecked(false);
         ui->checkBoxSlice->blockSignals(false);
+        ui->checkBoxShrink->blockSignals(true);
+        ui->checkBoxShrink->setChecked(false);
+        ui->checkBoxShrink->blockSignals(false);
         applyFilterAll(partList->getRootItem(), false, &ModelPart::setClip);
         applyFilterAll(partList->getRootItem(), false, &ModelPart::setSlice);
+        applyFilterAll(partList->getRootItem(), false, &ModelPart::setShrink);
         syncVRFilterRecursive(partList->getRootItem(), FILTER_CLIP, false);
         syncVRFilterRecursive(partList->getRootItem(), FILTER_SLICE, false);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_SHRINK, false);
     }
     updateRender();
     renderWindow->Render();
@@ -1215,14 +1230,14 @@ void MainWindow::handleSliceToggle(bool checked)
     if (index.isValid()) {
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         applySlice(part, checked, applySlice);
-        syncVRFilterRecursive(part, FILTER_SLICE, checked);
         if (checked)
             syncVRFilterRecursive(part, FILTER_SMOOTH, false);
+        syncVRFilterRecursive(part, FILTER_SLICE, checked);
     } else {
         applySlice(partList->getRootItem(), checked, applySlice);
-        syncVRFilterRecursive(partList->getRootItem(), FILTER_SLICE, checked);
         if (checked)
             syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_SLICE, checked);
     }
     updateRender();
     renderWindow->Render();

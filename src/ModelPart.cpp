@@ -389,6 +389,9 @@ void ModelPart::setClip(bool enabled)
 void ModelPart::setShrink(bool enabled)
 {
     isShrunk = enabled;
+    if (enabled && isSmoothed) {
+        isSmoothed = false;
+    }
     updatePipeline();
 }
 
@@ -403,6 +406,9 @@ void ModelPart::setSmooth(bool enabled)
     }
     if (enabled && isSliced) {
         isSliced = false;
+    }
+    if (enabled && isShrunk) {
+        isShrunk = false;
     }
     isSmoothed = enabled;
     updatePipeline();
