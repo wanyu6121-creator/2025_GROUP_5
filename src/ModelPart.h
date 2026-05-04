@@ -229,7 +229,7 @@ public:
      * @param enabled true=启用
      * true to apply
      */
-    void setSlice(bool enabled) { isSliced = enabled; updatePipeline(); }
+    void setSlice(bool enabled) { if (enabled) isSmoothed = false; isSliced = enabled; updatePipeline(); }
     bool getSlice() { return isSliced; } /**< @return 截面视图是否激活
                                           * True if slice view active */
 

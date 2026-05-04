@@ -116,6 +116,8 @@ static const int FILTER_DECIMATE  = 3;  /**< 抽取滤镜 - 减少 50% 多边形
                                          * Decimate filter - 50% polygon reduction. */
 static const int FILTER_ELEVATION = 4;  /**< 高度滤镜 - Z 高度彩虹着色。
                                          * Elevation filter - Z-height rainbow colouring. */
+static const int FILTER_SLICE     = 5;  /**< 截面滤镜 - 使用裁剪平面显示截面。
+                                         * Slice filter - uses a clip plane to show a cross-section. */
 
 /**
  * @brief VR命令结构体,携带命令类型、参数值和目标Actor索引。
@@ -158,6 +160,14 @@ struct ActorPackage {
                                                        * Initial clip state. */
     bool                               shrinkOn;     /**< 初始收缩状态。
                                                        * Initial shrink state. */
+    bool                               smoothOn;     /**< 初始平滑状态。
+                                                       * Initial smooth state. */
+    bool                               decimateOn;   /**< 初始抽取状态。
+                                                       * Initial decimate state. */
+    bool                               elevationOn;  /**< 初始高度色彩状态。
+                                                       * Initial elevation state. */
+    bool                               sliceOn;      /**< 初始截面状态。
+                                                       * Initial slice state. */
 };
 
 /**
@@ -230,7 +240,11 @@ public:
     int addActorOffline(vtkActor* actor,
                         vtkSTLReader* reader = nullptr,
                         bool clipOn = false,
-                        bool shrinkOn = false);
+                        bool shrinkOn = false,
+                        bool smoothOn = false,
+                        bool decimateOn = false,
+                        bool elevationOn = false,
+                        bool sliceOn = false);
 
     /**
      * @brief 清空Actor列表(VR重启前调用,不Delete Actor)
@@ -445,6 +459,8 @@ private:
                                                                * Decimate filter active. */
     QList<bool>                               elevationState; /**< 高度色彩滤镜是否激活。
                                                                * Elevation filter active. */
+    QList<bool>                               sliceState;     /**< 截面滤镜是否激活。
+                                                               * Slice filter active. */
 
     /* ---- 【B方案】VR内选中状态 ----
      *      Plan B: in-VR selection state ---- */

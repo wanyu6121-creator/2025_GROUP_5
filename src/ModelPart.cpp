@@ -282,7 +282,9 @@ void ModelPart::updatePipeline()
 
     /* 裁剪滤镜:输出类型为UnstructuredGrid
      * Clip filter: output type is UnstructuredGrid */
-    if (isClipped) {
+    const bool clipOrSlice = isClipped || isSliced;
+
+    if (clipOrSlice) {
         clipFilter->SetInputConnection(currentOutput);
         currentOutput = clipFilter->GetOutputPort();
     }
@@ -292,7 +294,7 @@ void ModelPart::updatePipeline()
      * Shrink filter: input and output are both PolyData.
      * If Clip is enabled, first convert the UnstructuredGrid to PolyData with GeometryFilter. */
     if (isShrunk) {
-        if (isClipped) {
+        if (clipOrSlice) {
             geometryFilter->SetInputConnection(currentOutput);
             currentOutput = geometryFilter->GetOutputPort();
         }
@@ -318,7 +320,7 @@ void ModelPart::updatePipeline()
      * GeometryFilter converts any VTK dataset type to PolyData.
      * CleanPolyData merges duplicate points — a hard requirement for DecimatePro. */
     if (isDecimated) {
-        if (isClipped && !isShrunk) {
+        if (clipOrSlice && !isShrunk) {
             geometryFilter->SetInputConnection(currentOutput);
             cleanFilter->SetInputConnection(geometryFilter->GetOutputPort());
         } else {
@@ -399,6 +401,9 @@ void ModelPart::setSmooth(bool enabled)
     if (enabled && isClipped) {
         isClipped = false;
     }
+    if (enabled && isSliced) {
+        isSliced = false;
+    }
     isSmoothed = enabled;
     updatePipeline();
 }
@@ -450,12 +455,15 @@ vtkActor* ModelPart::getNewActor()
     vtkSmartPointer<vtkShrinkPolyData> vrShrink = vtkSmartPointer<vtkShrinkPolyData>::New();
     vrShrink->SetShrinkFactor(0.6);
 
+    vtkSmartPointer<vtkGeometryFilter> vrGeometry = vtkSmartPointer<vtkGeometryFilter>::New();
+    vtkSmartPointer<vtkCleanPolyData> vrClean = vtkSmartPointer<vtkCleanPolyData>::New();
+
     vtkSmartPointer<vtkSmoothPolyDataFilter> vrSmooth = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
     vrSmooth->SetNumberOfIterations(20);
     vrSmooth->SetRelaxationFactor(0.1);
 
     vtkSmartPointer<vtkDecimatePro> vrDecimate = vtkSmartPointer<vtkDecimatePro>::New();
-    vrDecimate->SetTargetReduction(0.5);
+    vrDecimate->SetTargetReduction(0.9);
     vrDecimate->PreserveTopologyOn();
 
     double zMin = bounds[4], zMax = bounds[5];
@@ -474,12 +482,17 @@ vtkActor* ModelPart::getNewActor()
     /* 镜像当前GUI管线状态,构建与GUI完全相同的VR管线
      * Mirror the current GUI pipeline state to build an identical VR pipeline */
     vtkAlgorithmOutput* currentOutput = file->GetOutputPort();
+    const bool clipOrSlice = isClipped || isSliced;
 
-    if (isClipped) {
+    if (clipOrSlice) {
         vrClip->SetInputConnection(currentOutput);
         currentOutput = vrClip->GetOutputPort();
     }
     if (isShrunk) {
+        if (clipOrSlice) {
+            vrGeometry->SetInputConnection(currentOutput);
+            currentOutput = vrGeometry->GetOutputPort();
+        }
         vrShrink->SetInputConnection(currentOutput);
         currentOutput = vrShrink->GetOutputPort();
     }
@@ -488,7 +501,13 @@ vtkActor* ModelPart::getNewActor()
         currentOutput = vrSmooth->GetOutputPort();
     }
     if (isDecimated) {
-        vrDecimate->SetInputConnection(currentOutput);
+        if (clipOrSlice && !isShrunk) {
+            vrGeometry->SetInputConnection(currentOutput);
+            vrClean->SetInputConnection(vrGeometry->GetOutputPort());
+        } else {
+            vrClean->SetInputConnection(currentOutput);
+        }
+        vrDecimate->SetInputConnection(vrClean->GetOutputPort());
         currentOutput = vrDecimate->GetOutputPort();
     }
     if (isElevated) {

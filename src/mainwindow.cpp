@@ -308,6 +308,9 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, nowClipped);
+        syncVRFilterRecursive(part, FILTER_CLIP, nowClipped);
+        if (nowClipped)
+            syncVRFilterRecursive(part, FILTER_SMOOTH, false);
         updateRender();
         renderWindow->Render();
         emit statusUpdateMessage(
@@ -332,6 +335,7 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, nowShrunk);
+        syncVRFilterRecursive(part, FILTER_SHRINK, nowShrunk);
         updateRender();
         renderWindow->Render();
         emit statusUpdateMessage(
@@ -356,6 +360,11 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, now);
+        syncVRFilterRecursive(part, FILTER_SMOOTH, now);
+        if (now) {
+            syncVRFilterRecursive(part, FILTER_CLIP, false);
+            syncVRFilterRecursive(part, FILTER_SLICE, false);
+        }
         updateRender();
         renderWindow->Render();
         emit statusUpdateMessage(
@@ -380,6 +389,7 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, now);
+        syncVRFilterRecursive(part, FILTER_DECIMATE, now);
         updateRender();
         renderWindow->Render();
         emit statusUpdateMessage(
@@ -404,6 +414,7 @@ MainWindow::MainWindow(QWidget* parent)
             for (int i = 0; i < p->childCount(); ++i) recurse(p->child(i), en);
         };
         recurse(part, now);
+        syncVRFilterRecursive(part, FILTER_ELEVATION, now);
         updateRender();
         renderWindow->Render();
         emit statusUpdateMessage(
@@ -829,7 +840,11 @@ void MainWindow::populateVRActorsFromTree(const QModelIndex& index)
             vrActor,
             part->getReader(),
             part->getClip(),
-            part->getShrink()
+            part->getShrink(),
+            part->getSmooth(),
+            part->getDecimate(),
+            part->getElevation(),
+            part->getSlice()
         );
         actorIndexMap.insert(part, idx);
         /* 注册零件名称,VR内选中时显示在状态栏
@@ -852,6 +867,20 @@ int MainWindow::getActorIndex(ModelPart* part) const
     /* 从映射表中查找Actor索引,未注册则返回-1
      * Look up actor index from the map; returns -1 if not registered */
     return actorIndexMap.value(part, -1);
+}
+
+void MainWindow::syncVRFilterRecursive(ModelPart* part, int filterType, bool enabled)
+{
+    if (!part || !vrThread || !vrThread->isRunning()) return;
+
+    int idx = getActorIndex(part);
+    if (idx >= 0) {
+        double value = filterType * 10.0 + (enabled ? 1.0 : 0.0);
+        vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+    }
+
+    for (int i = 0; i < part->childCount(); ++i)
+        syncVRFilterRecursive(part->child(i), filterType, enabled);
 }
 
 /* ================================================================
@@ -882,18 +911,21 @@ void MainWindow::handleTreeClicked()
     ui->checkBoxSmooth->blockSignals(true);
     ui->checkBoxDecimate->blockSignals(true);
     ui->checkBoxElevation->blockSignals(true);
+    ui->checkBoxSlice->blockSignals(true);
 
     ui->checkBoxClip->setChecked(selectedPart->getClip());
     ui->checkBoxShrink->setChecked(selectedPart->getShrink());
     ui->checkBoxSmooth->setChecked(selectedPart->getSmooth());
     ui->checkBoxDecimate->setChecked(selectedPart->getDecimate());
     ui->checkBoxElevation->setChecked(selectedPart->getElevation());
+    ui->checkBoxSlice->setChecked(selectedPart->getSlice());
 
     ui->checkBoxClip->blockSignals(false);
     ui->checkBoxShrink->blockSignals(false);
     ui->checkBoxSmooth->blockSignals(false);
     ui->checkBoxDecimate->blockSignals(false);
     ui->checkBoxElevation->blockSignals(false);
+    ui->checkBoxSlice->blockSignals(false);
 
     /* 状态栏显示:零件名+可见性+当前激活的滤镜列表
      * Status bar: part name + visibility + list of currently active filters */
@@ -903,6 +935,7 @@ void MainWindow::handleTreeClicked()
     if (selectedPart->getSmooth())    activeFilters << "Smooth";
     if (selectedPart->getDecimate())  activeFilters << "Decimate";
     if (selectedPart->getElevation()) activeFilters << "Elevation";
+    if (selectedPart->getSlice())     activeFilters << "Slice";
 
     QString filterStr = activeFilters.isEmpty() ? "none" : activeFilters.join(", ");
     QString visStr    = selectedPart->visible() ? "Visible" : "Hidden";
@@ -952,6 +985,10 @@ void MainWindow::on_actionOpen_File_triggered()
                 pkg.reader   = vtkSmartPointer<vtkSTLReader>(newItem->getReader());
                 pkg.clipOn   = newItem->getClip();
                 pkg.shrinkOn = newItem->getShrink();
+                pkg.smoothOn = newItem->getSmooth();
+                pkg.decimateOn = newItem->getDecimate();
+                pkg.elevationOn = newItem->getElevation();
+                pkg.sliceOn = newItem->getSlice();
                 vrThread->queueAddActor(pkg);
             }
         }
@@ -1070,15 +1107,20 @@ void MainWindow::handleClipToggle(bool checked)
     /* 对所有零件递归应用裁剪滤镜状态
      * Recursively apply clip filter state to all parts */
     applyFilterAll(partList->getRootItem(), checked, &ModelPart::setClip);
+    if (checked) {
+        ui->checkBoxSmooth->blockSignals(true);
+        ui->checkBoxSmooth->setChecked(false);
+        ui->checkBoxSmooth->blockSignals(false);
+    }
     updateRender();
     renderWindow->Render();
 
     /* 同步到VR线程中所有已注册的Actor
      * Sync to all registered actors in the VR thread */
     if (vrThread && vrThread->isRunning()) {
-        double value = FILTER_CLIP * 10.0 + (checked ? 1.0 : 0.0);
-        for (int idx : actorIndexMap.values())
-            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_CLIP, checked);
+        if (checked)
+            syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
     }
     emit statusUpdateMessage(
         checked ? "Clip applied to all parts" : "Clip removed from all parts", 2000);
@@ -1091,9 +1133,7 @@ void MainWindow::handleShrinkToggle(bool checked)
     renderWindow->Render();
 
     if (vrThread && vrThread->isRunning()) {
-        double value = FILTER_SHRINK * 10.0 + (checked ? 1.0 : 0.0);
-        for (int idx : actorIndexMap.values())
-            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_SHRINK, checked);
     }
     emit statusUpdateMessage(
         checked ? "Shrink applied to all parts" : "Shrink removed from all parts", 2000);
@@ -1109,15 +1149,19 @@ void MainWindow::handleSmoothToggle(bool checked)
         ui->checkBoxClip->blockSignals(true);
         ui->checkBoxClip->setChecked(false);
         ui->checkBoxClip->blockSignals(false);
+        ui->checkBoxSlice->blockSignals(true);
+        ui->checkBoxSlice->setChecked(false);
+        ui->checkBoxSlice->blockSignals(false);
         applyFilterAll(partList->getRootItem(), false, &ModelPart::setClip);
+        applyFilterAll(partList->getRootItem(), false, &ModelPart::setSlice);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_CLIP, false);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_SLICE, false);
     }
     updateRender();
     renderWindow->Render();
 
     if (vrThread && vrThread->isRunning()) {
-        double value = FILTER_SMOOTH * 10.0 + (checked ? 1.0 : 0.0);
-        for (int idx : actorIndexMap.values())
-            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, checked);
     }
     emit statusUpdateMessage(
         checked ? "Smooth applied to all parts" : "Smooth removed from all parts", 2000);
@@ -1130,9 +1174,7 @@ void MainWindow::handleDecimateToggle(bool checked)
     renderWindow->Render();
 
     if (vrThread && vrThread->isRunning()) {
-        double value = FILTER_DECIMATE * 10.0 + (checked ? 1.0 : 0.0);
-        for (int idx : actorIndexMap.values())
-            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_DECIMATE, checked);
     }
     emit statusUpdateMessage(
         checked ? "Decimate applied to all parts" : "Decimate removed from all parts", 2000);
@@ -1145,9 +1187,7 @@ void MainWindow::handleElevationToggle(bool checked)
     renderWindow->Render();
 
     if (vrThread && vrThread->isRunning()) {
-        double value = FILTER_ELEVATION * 10.0 + (checked ? 1.0 : 0.0);
-        for (int idx : actorIndexMap.values())
-            vrThread->issueCommand(CMD_APPLY_FILTER, value, idx);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_ELEVATION, checked);
     }
     emit statusUpdateMessage(
         checked ? "Elevation applied to all parts" : "Elevation removed from all parts", 2000);
@@ -1158,6 +1198,12 @@ void MainWindow::handleElevationToggle(bool checked)
  * falls back to global application if nothing is selected */
 void MainWindow::handleSliceToggle(bool checked)
 {
+    if (checked) {
+        ui->checkBoxSmooth->blockSignals(true);
+        ui->checkBoxSmooth->setChecked(false);
+        ui->checkBoxSmooth->blockSignals(false);
+    }
+
     auto applySlice = [](ModelPart* part, bool en, auto& self) -> void {
         if (!part) return;
         part->setSlice(en);
@@ -1169,8 +1215,14 @@ void MainWindow::handleSliceToggle(bool checked)
     if (index.isValid()) {
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
         applySlice(part, checked, applySlice);
+        syncVRFilterRecursive(part, FILTER_SLICE, checked);
+        if (checked)
+            syncVRFilterRecursive(part, FILTER_SMOOTH, false);
     } else {
         applySlice(partList->getRootItem(), checked, applySlice);
+        syncVRFilterRecursive(partList->getRootItem(), FILTER_SLICE, checked);
+        if (checked)
+            syncVRFilterRecursive(partList->getRootItem(), FILTER_SMOOTH, false);
     }
     updateRender();
     renderWindow->Render();
@@ -1281,6 +1333,10 @@ void MainWindow::on_actionOpen_Directory_triggered()
                 pkg.reader   = vtkSmartPointer<vtkSTLReader>(fileNode->getReader());
                 pkg.clipOn   = fileNode->getClip();
                 pkg.shrinkOn = fileNode->getShrink();
+                pkg.smoothOn = fileNode->getSmooth();
+                pkg.decimateOn = fileNode->getDecimate();
+                pkg.elevationOn = fileNode->getElevation();
+                pkg.sliceOn = fileNode->getSlice();
                 vrThread->queueAddActor(pkg);
             }
         }

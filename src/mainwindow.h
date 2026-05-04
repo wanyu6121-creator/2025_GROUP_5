@@ -227,6 +227,10 @@ private:
      */
     int getActorIndex(ModelPart* part) const;
 
+    /** 将一个零件子树的滤镜状态同步到VR线程。
+     *  Sync a filter state for a part subtree to the VR thread. */
+    void syncVRFilterRecursive(ModelPart* part, int filterType, bool enabled);
+
     Ui::MainWindow*                              ui;            /**< Qt生成的UI对象
                                                                  * Qt-generated UI object */
     ModelPartList*                               partList;      /**< 树模型
