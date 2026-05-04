@@ -1338,6 +1338,10 @@ void VRRenderThread::rebuildPipeline(int idx)
     }
 
     if (shrinkState[idx]) {
+        if (clipState[idx]) {
+            geometryFilters[idx]->SetInputConnection(current);
+            current = geometryFilters[idx]->GetOutputPort();
+        }
         shrinkFilters[idx]->SetInputConnection(current);
         current = shrinkFilters[idx]->GetOutputPort();
     }
@@ -1350,8 +1354,12 @@ void VRRenderThread::rebuildPipeline(int idx)
     if (decimateState[idx]) {
         /* 抽取前需要GeometryFilter转换类型+CleanPolyData合并重复点
          * Before decimating: GeometryFilter converts type + CleanPolyData merges duplicate points */
-        geometryFilters[idx]->SetInputConnection(current);
-        cleanFilters[idx]->SetInputConnection(geometryFilters[idx]->GetOutputPort());
+        if (clipState[idx] && !shrinkState[idx]) {
+            geometryFilters[idx]->SetInputConnection(current);
+            cleanFilters[idx]->SetInputConnection(geometryFilters[idx]->GetOutputPort());
+        } else {
+            cleanFilters[idx]->SetInputConnection(current);
+        }
         decimateFilters[idx]->SetInputConnection(cleanFilters[idx]->GetOutputPort());
         current = decimateFilters[idx]->GetOutputPort();
     }

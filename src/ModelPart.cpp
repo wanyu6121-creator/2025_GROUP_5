@@ -287,9 +287,15 @@ void ModelPart::updatePipeline()
         currentOutput = clipFilter->GetOutputPort();
     }
 
-    /* 收缩滤镜:输入和输出均为PolyData
-     * Shrink filter: input and output are both PolyData */
+    /* 收缩滤镜:输入和输出均为PolyData。
+     * 若Clip已经启用,先用GeometryFilter将UnstructuredGrid转换为PolyData。
+     * Shrink filter: input and output are both PolyData.
+     * If Clip is enabled, first convert the UnstructuredGrid to PolyData with GeometryFilter. */
     if (isShrunk) {
+        if (isClipped) {
+            geometryFilter->SetInputConnection(currentOutput);
+            currentOutput = geometryFilter->GetOutputPort();
+        }
         shrinkFilter->SetInputConnection(currentOutput);
         currentOutput = shrinkFilter->GetOutputPort();
     }
@@ -312,8 +318,12 @@ void ModelPart::updatePipeline()
      * GeometryFilter converts any VTK dataset type to PolyData.
      * CleanPolyData merges duplicate points — a hard requirement for DecimatePro. */
     if (isDecimated) {
-        geometryFilter->SetInputConnection(currentOutput);
-        cleanFilter->SetInputConnection(geometryFilter->GetOutputPort());
+        if (isClipped && !isShrunk) {
+            geometryFilter->SetInputConnection(currentOutput);
+            cleanFilter->SetInputConnection(geometryFilter->GetOutputPort());
+        } else {
+            cleanFilter->SetInputConnection(currentOutput);
+        }
         decimateFilter->SetInputConnection(cleanFilter->GetOutputPort());
         currentOutput = decimateFilter->GetOutputPort();
     }
