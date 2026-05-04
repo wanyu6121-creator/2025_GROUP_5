@@ -164,7 +164,8 @@ void ModelPart::loadSTL(QString fileName)
      *      STL reader ---- */
     file = vtkSmartPointer<vtkSTLReader>::New();
     file->SetFileName(fileName.toStdString().c_str());
-    file->Update();  /* 立即读取文件,使GetBounds()可用 / Read the file immediately so GetBounds() is available */
+    file->Update();  /* 立即读取文件,使GetBounds()可用
+                      * Read the file immediately so GetBounds() is available */
 
     /* ---- 滤镜1:裁剪(Clip)----
      *      Filter 1: Clip
@@ -173,7 +174,8 @@ void ModelPart::loadSTL(QString fileName)
      * The clip plane origin is set to the model's X-centre so the cut
      * always bisects the model regardless of its world position. */
     clipPlane = vtkSmartPointer<vtkPlane>::New();
-    clipPlane->SetOrigin(0.0, 0.0, 0.0);   /* setClip()会在启用时更新此值 / Updated in setClip() when enabled */
+    clipPlane->SetOrigin(0.0, 0.0, 0.0);   /* setClip()会在启用时更新此值
+                                            * Updated in setClip() when enabled */
     clipPlane->SetNormal(-1.0, 0.0, 0.0);
     clipFilter = vtkSmartPointer<vtkClipDataSet>::New();
     clipFilter->SetClipFunction(clipPlane.Get());
@@ -195,8 +197,10 @@ void ModelPart::loadSTL(QString fileName)
     smoothFilter = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
     smoothFilter->SetNumberOfIterations(20);
     smoothFilter->SetRelaxationFactor(0.1);
-    smoothFilter->FeatureEdgeSmoothingOff();  /* 保留特征边 / Preserve feature edges */
-    smoothFilter->BoundarySmoothingOn();       /* 平滑边界 / Smooth boundary edges */
+    smoothFilter->FeatureEdgeSmoothingOff();  /* 保留特征边
+                                               * Preserve feature edges */
+    smoothFilter->BoundarySmoothingOn();       /* 平滑边界
+                                                * Smooth boundary edges */
 
     /* ---- 滤镜4:抽取(Decimate)----
      *      Filter 4: Decimate
@@ -209,8 +213,10 @@ void ModelPart::loadSTL(QString fileName)
     cleanFilter    = vtkSmartPointer<vtkCleanPolyData>::New();
     geometryFilter = vtkSmartPointer<vtkGeometryFilter>::New();
     decimateFilter = vtkSmartPointer<vtkDecimatePro>::New();
-    decimateFilter->SetTargetReduction(0.9);  /* 减少90%的多边形 / Reduce polygon count by 90% */
-    decimateFilter->PreserveTopologyOn();      /* 防止产生孔洞 / Prevent holes forming */
+    decimateFilter->SetTargetReduction(0.9);  /* 减少90%的多边形
+                                               * Reduce polygon count by 90% */
+    decimateFilter->PreserveTopologyOn();      /* 防止产生孔洞
+                                                * Prevent holes forming */
 
     /* ---- 滤镜5:高度色彩(Elevation)----
      *      Filter 5: Elevation
@@ -233,7 +239,8 @@ void ModelPart::loadSTL(QString fileName)
      * Rainbow lookup table: blue (low) -> red (high) */
     elevationLUT = vtkSmartPointer<vtkLookupTable>::New();
     elevationLUT->SetNumberOfTableValues(256);
-    elevationLUT->SetHueRange(0.667, 0.0);  /* 色相范围:蓝色(0.667)到红色(0.0) / Hue: blue (0.667) to red (0.0) */
+    elevationLUT->SetHueRange(0.667, 0.0);  /* 色相范围:蓝色(0.667)到红色(0.0)
+                                             * Hue: blue (0.667) to red (0.0) */
     elevationLUT->Build();
 
     /* ---- Mapper和Actor----

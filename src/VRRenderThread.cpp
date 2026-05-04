@@ -16,7 +16,8 @@
  *       Skybox background (procedurally generated starfield cubemap)
  *     - 光照强度实时控制(CMD_SET_LIGHT_INTENSITY,value=0.0~2.0)
  *       Real-time light intensity control (CMD_SET_LIGHT_INTENSITY, value 0.0~2.0)
- *     - 动态增删Actor(queueAddActor + processPendingActors / CMD_REMOVE_ACTOR)
+ *     - 动态增删Actor(queueAddActor + processPendingActors
+ *     CMD_REMOVE_ACTOR)
  *       Dynamic add/remove actors (queueAddActor + processPendingActors / CMD_REMOVE_ACTOR)
  *     - 手柄射线拾取+拖动零件(VR模式)
  *       Controller ray picking + drag parts (VR mode)
@@ -49,12 +50,18 @@
  * Colour cycle table (CMD_VR_SET_COLOUR command cycles through these)
  * ================================================================ */
 const int VRRenderThread::colorTable[VRRenderThread::COLOR_COUNT][3] = {
-    {255, 255, 255},   /* 白 / White */
-    {220,  50,  50},   /* 红 / Red */
-    { 50, 180,  50},   /* 绿 / Green */
-    { 50, 120, 220},   /* 蓝 / Blue */
-    {220, 180,  50},   /* 黄 / Yellow */
-    {180,  50, 220},   /* 紫 / Purple */
+    {255, 255, 255},   /* 白
+                        * White */
+    {220,  50,  50},   /* 红
+                        * Red */
+    { 50, 180,  50},   /* 绿
+                        * Green */
+    { 50, 120, 220},   /* 蓝
+                        * Blue */
+    {220, 180,  50},   /* 黄
+                        * Yellow */
+    {180,  50, 220},   /* 紫
+                        * Purple */
 };
 
 /* ================================================================
@@ -153,7 +160,8 @@ void VRRenderThread::resetModelView(vtkCamera* camera,
      * Reset each actor's position and orientation to the saved factory state */
     for (int i = 0; i < actorList.size(); ++i) {
         if (!actorList[i]) continue;
-        actorList[i]->SetOrientation(0.0, 0.0, 0.0);  /* 清除所有旋转 / Clear all rotation */
+        actorList[i]->SetOrientation(0.0, 0.0, 0.0);  /* 清除所有旋转
+                                                       * Clear all rotation */
         if (i < initActorPositions.size()) {
             actorList[i]->SetPosition(
                 initActorPositions[i][0],
@@ -186,13 +194,18 @@ void VRRenderThread::applyViewPreset(int index)
      *       Isometric: classic 3/4 overview angle */
     struct Preset { double pitch, yaw, roll; };
     static const Preset presets[] = {
-        {  0.0,   0.0, 0.0 },   /* 正视图 / Front */
-        { 90.0,   0.0, 0.0 },   /* 顶视图 / Top */
-        {  0.0, -90.0, 0.0 },   /* 右视图 / Right Side */
-        { 30.0,  45.0, 0.0 },   /* 等轴视图 / Isometric */
+        {  0.0,   0.0, 0.0 },   /* 正视图
+                                 * Front */
+        { 90.0,   0.0, 0.0 },   /* 顶视图
+                                 * Top */
+        {  0.0, -90.0, 0.0 },   /* 右视图
+                                 * Right Side */
+        { 30.0,  45.0, 0.0 },   /* 等轴视图
+                                 * Isometric */
     };
 
-    if (index < 0 || index > 3) index = 0;  /* 越界则使用正视图 / Clamp to Front */
+    if (index < 0 || index > 3) index = 0;  /* 越界则使用正视图
+                                             * Clamp to Front */
     const Preset& p = presets[index];
 
     /* 对所有Actor应用相同的方向
@@ -243,7 +256,8 @@ void VRRenderThread::highlightActor(int idx, bool on)
 int VRRenderThread::pickActorAt(int x, int y, vtkRenderer* renderer)
 {
     vtkNew<vtkPropPicker> picker;
-    picker->Pick(x, y, 0, renderer);  /* z=0表示从屏幕平面投射射线 / z=0 casts ray from screen plane */
+    picker->Pick(x, y, 0, renderer);  /* z=0表示从屏幕平面投射射线
+                                       * z=0 casts ray from screen plane */
     vtkActor* hit = picker->GetActor();
     if (!hit) return -1;
     /* 在actorList中查找命中的Actor
@@ -346,7 +360,8 @@ int VRRenderThread::addActorOffline(vtkActor* actor,
     }
     vtkSmartPointer<vtkLookupTable> lut = vtkSmartPointer<vtkLookupTable>::New();
     lut->SetNumberOfTableValues(256);
-    lut->SetHueRange(0.667, 0.0);   /* 蓝色->红色 / Blue -> red */
+    lut->SetHueRange(0.667, 0.0);   /* 蓝色->红色
+                                     * Blue -> red */
     lut->Build();
     elevationFilters.append(ef);
     elevationLUTs.append(lut);
@@ -446,10 +461,12 @@ void VRRenderThread::runVRMode()
     vtkNew<vtkOpenVRCamera>                 camera;
 
     renderWindow->AddRenderer(renderer);
-    renderWindow->SetSize(2160, 1200);  /* HTC Vive分辨率 / HTC Vive resolution */
+    renderWindow->SetSize(2160, 1200);  /* HTC Vive分辨率
+                                         * HTC Vive resolution */
     interactor->SetRenderWindow(renderWindow);
     renderer->SetActiveCamera(camera);
-    renderer->SetBackground(0.05, 0.05, 0.15);  /* 深蓝色背景(Skybox会覆盖此颜色) / Deep blue (Skybox will override) */
+    renderer->SetBackground(0.05, 0.05, 0.15);  /* 深蓝色背景(Skybox会覆盖此颜色)
+                                                 * Deep blue (Skybox will override) */
 
     /* 将启动时已注册的所有模型Actor加入渲染器
      * Add all model actors registered before startup to the renderer */
@@ -488,7 +505,8 @@ void VRRenderThread::runVRMode()
         acs->InitTraversal();
         while (vtkActor* a = acs->GetNextActor()) {
             double b[6]; a->GetBounds(b);
-            if (b[0] > b[1]) continue;  /* 跳过无效包围盒 / Skip invalid bounds */
+            if (b[0] > b[1]) continue;  /* 跳过无效包围盒
+                                         * Skip invalid bounds */
             if (!hasBounds) {
                 for (int i = 0; i < 6; ++i) bounds[i] = b[i];
                 hasBounds = true;
@@ -508,7 +526,8 @@ void VRRenderThread::runVRMode()
             double maxSize = std::max({bounds[1]-bounds[0],
                                        bounds[3]-bounds[2],
                                        bounds[5]-bounds[4]});
-            double camDist = maxSize * 1.2;  /* 相机距离=模型最大尺寸的1.2倍 / Camera distance = 1.2x model size */
+            double camDist = maxSize * 1.2;  /* 相机距离=模型最大尺寸的1.2倍
+                                              * Camera distance = 1.2x model size */
             renderer->GetActiveCamera()->SetPosition(cx, cy, cz + camDist);
             renderer->GetActiveCamera()->SetFocalPoint(cx, cy, cz);
             renderer->GetActiveCamera()->SetViewUp(0.0, 1.0, 0.0);
@@ -819,7 +838,8 @@ void VRRenderThread::runDesktopMode()
             break;
         }
 
-        QThread::msleep(16);  /* 约60fps / ~60fps */
+        QThread::msleep(16);  /* 约60fps
+                               * ~60fps */
     }
 }
 
@@ -1091,7 +1111,8 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
         vtkActor* a = actorList[idx];
         if (a && renderer) {
             renderer->RemoveActor(a);
-            a->Delete();  /* 释放getNewActor()分配的内存 / Free memory allocated by getNewActor() */
+            a->Delete();  /* 释放getNewActor()分配的内存
+                           * Free memory allocated by getNewActor() */
         }
 
         /* 用nullptr占位,保持其他Actor的索引不变
@@ -1123,7 +1144,9 @@ void VRRenderThread::processCommandVR(const VRCmd& vcmd, vtkOpenVRRenderer* rend
     case CMD_RESET_VIEW:
         /* 在真实VR中不恢复相机(用户物理站立,移动相机会产生不适)
          * Don't restore camera in real VR (user stands physically; moving camera feels wrong) */
-        resetModelView(renderer->GetActiveCamera(), renderer, /*restoreCamera=*/false);
+        resetModelView(renderer->GetActiveCamera(), renderer,
+                       /* 恢复相机
+                        * restoreCamera */ false);
         break;
 
     case CMD_SET_VIEW:
@@ -1265,7 +1288,9 @@ void VRRenderThread::processCommandDesktop(const VRCmd& vcmd, vtkRenderer* rende
     case CMD_RESET_VIEW:
         /* 桌面模式:也恢复相机,使窗口回到有用的观察角度
          * Desktop mode: also restore camera so the window snaps back to a useful angle */
-        resetModelView(renderer->GetActiveCamera(), renderer, /*restoreCamera=*/true);
+        resetModelView(renderer->GetActiveCamera(), renderer,
+                       /* 恢复相机
+                        * restoreCamera */ true);
         break;
 
     case CMD_SET_VIEW:
@@ -1346,7 +1371,8 @@ void VRRenderThread::rebuildPipeline(int idx)
     }
 
     mapper->SetInputConnection(current);
-    mapper->Update();  /* 强制立即更新管线 / Force immediate pipeline update */
+    mapper->Update();  /* 强制立即更新管线
+                        * Force immediate pipeline update */
 }
 
 /* ================================================================
@@ -1363,7 +1389,8 @@ void VRRenderThread::rebuildPipeline(int idx)
 
 static vtkSmartPointer<vtkTexture> generateCubemapTexture()
 {
-    const int S = 512, NC = 3;  /* 每面512×512 RGB / 512×512 RGB per face */
+    const int S = 512, NC = 3;  /* 每面512×512 RGB
+                                 * 512×512 RGB per face */
 
     auto clamp = [](int v) -> unsigned char {
         return (unsigned char)(v < 0 ? 0 : v > 255 ? 255 : v);
@@ -1417,9 +1444,12 @@ static vtkSmartPointer<vtkTexture> generateCubemapTexture()
         for (int s = 0; s < 120; ++s) {
             int sx=std::rand()%S, sy=std::rand()%S, t=std::rand()%3;
             int sr, sg, sb;
-            if      (t==0){sr=sg=sb=215+std::rand()%40;}       /* 白 / White */
-            else if (t==1){sr=175+std::rand()%55;sg=185+std::rand()%55;sb=255;} /* 蓝白 / Blue-white */
-            else          {sr=255;sg=230+std::rand()%25;sb=175+std::rand()%55;} /* 黄 / Yellow */
+            if      (t==0){sr=sg=sb=215+std::rand()%40;}       /* 白
+                                                                * White */
+            else if (t==1){sr=175+std::rand()%55;sg=185+std::rand()%55;sb=255;} /* 蓝白
+                                                                                 * Blue-white */
+            else          {sr=255;sg=230+std::rand()%25;sb=175+std::rand()%55;} /* 黄
+                                                                                 * Yellow */
             int hr=1+std::rand()%3;
             for (int dy=-hr; dy<=hr; ++dy)
             for (int dx=-hr; dx<=hr; ++dx) {
@@ -1452,17 +1482,20 @@ static void attachSkybox(vtkRenderer* renderer, vtkSmartPointer<vtkTexture> cube
     vtkSmartPointer<vtkSkybox> skybox = vtkSmartPointer<vtkSkybox>::New();
     skybox->SetTexture(cubemap);
     renderer->AddActor(skybox);
-    renderer->GradientBackgroundOff();  /* 关闭渐变背景,让Skybox可见 / Disable gradient so Skybox is visible */
+    renderer->GradientBackgroundOff();  /* 关闭渐变背景,让Skybox可见
+                                         * Disable gradient so Skybox is visible */
 }
 
 void VRRenderThread::setupSkybox(vtkOpenVRRenderer* renderer,
-                                  vtkOpenVRRenderWindow* /*renderWindow*/)
+                                  vtkOpenVRRenderWindow* /* 渲染窗口
+                                                            * renderWindow */)
 {
     attachSkybox(renderer, generateCubemapTexture());
 }
 
 void VRRenderThread::setupSkyboxDesktop(vtkRenderer* renderer,
-                                         vtkRenderWindow* /*renderWindow*/)
+                                         vtkRenderWindow* /* 渲染窗口
+                                                            * renderWindow */)
 {
     attachSkybox(renderer, generateCubemapTexture());
 }
@@ -1486,11 +1519,15 @@ void VRRenderThread::setupLighting(vtkOpenVRRenderer* renderer)
     mainLight = vtkSmartPointer<vtkLight>::New();
     mainLight->SetLightTypeToSceneLight();
     mainLight->SetPosition(5.0, 10.0, 15.0);
-    mainLight->SetPositional(false);  /* 方向光(无衰减) / Directional light (no attenuation) */
+    mainLight->SetPositional(false);  /* 方向光(无衰减)
+                                       * Directional light (no attenuation) */
     mainLight->SetFocalPoint(0.0, 0.0, 0.0);
-    mainLight->SetDiffuseColor(1.0, 1.0, 1.0);   /* 白色漫反射 / White diffuse */
-    mainLight->SetAmbientColor(0.3, 0.3, 0.3);   /* 环境光提升基础亮度 / Ambient raises base brightness */
-    mainLight->SetSpecularColor(1.0, 1.0, 1.0);  /* 白色高光 / White specular */
+    mainLight->SetDiffuseColor(1.0, 1.0, 1.0);   /* 白色漫反射
+                                                  * White diffuse */
+    mainLight->SetAmbientColor(0.3, 0.3, 0.3);   /* 环境光提升基础亮度
+                                                  * Ambient raises base brightness */
+    mainLight->SetSpecularColor(1.0, 1.0, 1.0);  /* 白色高光
+                                                  * White specular */
     mainLight->SetIntensity(mainLightIntensity);
     renderer->AddLight(mainLight);
 
@@ -1501,10 +1538,12 @@ void VRRenderThread::setupLighting(vtkOpenVRRenderer* renderer)
     fillLight->SetPosition(-8.0, 5.0, -5.0);
     fillLight->SetPositional(false);
     fillLight->SetFocalPoint(0.0, 0.0, 0.0);
-    fillLight->SetDiffuseColor(0.8, 0.9, 1.0);  /* 冷蓝色 / Cool blue */
+    fillLight->SetDiffuseColor(0.8, 0.9, 1.0);  /* 冷蓝色
+                                                 * Cool blue */
     fillLight->SetAmbientColor(0.0, 0.0, 0.0);
     fillLight->SetSpecularColor(0.0, 0.0, 0.0);
-    fillLight->SetIntensity(0.4);  /* 主光的50% / 50% of key light */
+    fillLight->SetIntensity(0.4);  /* 主光的50%
+                                    * 50% of key light */
     renderer->AddLight(fillLight);
 }
 
@@ -1565,7 +1604,8 @@ static void buildFloorActor(vtkRenderer* renderer)
         if (a->GetMapper()) a->GetMapper()->Update();
         double b[6];
         a->GetBounds(b);
-        if (b[0] > b[1]) continue;  /* 跳过无效包围盒(如Skybox) / Skip invalid bounds (e.g. Skybox) */
+        if (b[0] > b[1]) continue;  /* 跳过无效包围盒(如Skybox)
+                                     * Skip invalid bounds (e.g. Skybox) */
         if (!hasBounds) {
             for (int i = 0; i < 6; ++i) sceneBounds[i] = b[i];
             hasBounds = true;
@@ -1627,7 +1667,8 @@ static void buildFloorActor(vtkRenderer* renderer)
      * Step 3: create floor plane (fixed at Y=0, size covers 2x model horizontal extent) */
     double spanX = hasBounds ? (sceneBounds[1] - sceneBounds[0]) : 20.0;
     double spanZ = hasBounds ? (sceneBounds[5] - sceneBounds[4]) : 20.0;
-    double halfX = std::max(spanX * 2.0, 15.0);  /* 至少15单位宽 / At least 15 units wide */
+    double halfX = std::max(spanX * 2.0, 15.0);  /* 至少15单位宽
+                                                  * At least 15 units wide */
     double halfZ = std::max(spanZ * 2.0, 15.0);
     double cx    = hasBounds ? (sceneBounds[0] + sceneBounds[1]) / 2.0 : 0.0;
     double cz    = hasBounds ? (sceneBounds[4] + sceneBounds[5]) / 2.0 : 0.0;
@@ -1636,7 +1677,8 @@ static void buildFloorActor(vtkRenderer* renderer)
     floorPlane->SetOrigin(cx - halfX, TARGET_FLOOR_Y, cz - halfZ);
     floorPlane->SetPoint1(cx + halfX, TARGET_FLOOR_Y, cz - halfZ);
     floorPlane->SetPoint2(cx - halfX, TARGET_FLOOR_Y, cz + halfZ);
-    floorPlane->SetResolution(20, 20);  /* 细分以获得更好的光照效果 / Subdivide for better lighting */
+    floorPlane->SetResolution(20, 20);  /* 细分以获得更好的光照效果
+                                         * Subdivide for better lighting */
     floorPlane->Update();
 
     vtkNew<vtkPolyDataMapper> floorMapper;
@@ -1644,10 +1686,13 @@ static void buildFloorActor(vtkRenderer* renderer)
 
     vtkNew<vtkActor> floorActor;
     floorActor->SetMapper(floorMapper);
-    floorActor->GetProperty()->SetColor(0.3, 0.3, 0.3);  /* 深灰色地板 / Dark grey floor */
-    floorActor->GetProperty()->SetAmbient(0.5);           /* 较高环境光使地板不过暗 / Higher ambient keeps floor visible */
+    floorActor->GetProperty()->SetColor(0.3, 0.3, 0.3);  /* 深灰色地板
+                                                          * Dark grey floor */
+    floorActor->GetProperty()->SetAmbient(0.5);           /* 较高环境光使地板不过暗
+                                                           * Higher ambient keeps floor visible */
     floorActor->GetProperty()->SetDiffuse(0.5);
-    floorActor->GetProperty()->SetSpecular(0.1);          /* 轻微高光 / Slight specular */
+    floorActor->GetProperty()->SetSpecular(0.1);          /* 轻微高光
+                                                           * Slight specular */
 
     renderer->AddActor(floorActor);
 }

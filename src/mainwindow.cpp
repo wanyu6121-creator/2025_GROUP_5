@@ -73,8 +73,10 @@ static void applyShrinkRecursive(ModelPart* part, bool enabled)
 
 static vtkSmartPointer<vtkTexture> generateStarfieldTexture()
 {
-    const int W = 1024, H = 512, NC = 3;  /* 宽/高/通道数 / Width/Height/Channels */
-    std::srand(20250428);  /* 固定种子确保每次生成相同图案 / Fixed seed for reproducible pattern */
+    const int W = 1024, H = 512, NC = 3;  /* 宽/高/通道数
+                                           * Width/Height/Channels */
+    std::srand(20250428);  /* 固定种子确保每次生成相同图案
+                            * Fixed seed for reproducible pattern */
 
     vtkSmartPointer<vtkImageData> img = vtkSmartPointer<vtkImageData>::New();
     img->SetDimensions(W, H, 1);
@@ -118,7 +120,8 @@ static vtkSmartPointer<vtkTexture> generateStarfieldTexture()
         for (int dx = -r; dx <= r; ++dx) {
             float d = std::sqrt((float)(dx*dx+dy*dy));
             if (d > r) continue;
-            float a = std::exp(-2.5f*(d/r)*(d/r));  /* 高斯权重 / Gaussian weight */
+            float a = std::exp(-2.5f*(d/r)*(d/r));  /* 高斯权重
+                                                     * Gaussian weight */
             addPx((cx+dx+W)%W,(cy+dy+H)%H,(int)(nr*a),(int)(ng*a),(int)(nb*a));
         }
     }
@@ -128,10 +131,14 @@ static vtkSmartPointer<vtkTexture> generateStarfieldTexture()
     for (int s = 0; s < 700; ++s) {
         int sx = std::rand()%W, sy = std::rand()%H, t = std::rand()%3;
         int sr, sg, sb;
-        if      (t==0) { sr=sg=sb=215+std::rand()%40; }           /* 白星 / White */
-        else if (t==1) { sr=175+std::rand()%55; sg=185+std::rand()%55; sb=255; }  /* 蓝白 / Blue-white */
-        else           { sr=255; sg=230+std::rand()%25; sb=175+std::rand()%55; }  /* 黄星 / Yellow */
-        int hr = 1+std::rand()%3;  /* 星的半径 / Star radius */
+        if      (t==0) { sr=sg=sb=215+std::rand()%40; }           /* 白星
+                                                                   * White */
+        else if (t==1) { sr=175+std::rand()%55; sg=185+std::rand()%55; sb=255; }  /* 蓝白
+                                                                                   * Blue-white */
+        else           { sr=255; sg=230+std::rand()%25; sb=175+std::rand()%55; }  /* 黄星
+                                                                                   * Yellow */
+        int hr = 1+std::rand()%3;  /* 星的半径
+                                    * Star radius */
         for (int dy=-hr; dy<=hr; ++dy)
         for (int dx=-hr; dx<=hr; ++dx) {
             float d=std::sqrt((float)(dx*dx+dy*dy));
@@ -249,7 +256,8 @@ MainWindow::MainWindow(QWidget* parent)
         viewBtn->setToolButtonStyle(Qt::ToolButtonTextOnly);
         viewBtn->setMinimumWidth(70);
         viewBtn->setDefaultAction(ui->actionViewFront);
-        viewBtn->setText("Set View");  /* setDefaultAction会覆盖文本,需重新设置 / setDefaultAction overwrites text, reset it */
+        viewBtn->setText("Set View");  /* setDefaultAction会覆盖文本,需重新设置
+                                        * setDefaultAction overwrites text, reset it */
 
         /* 在Reset View动作之前插入
          * Insert before the Reset View action */
@@ -292,7 +300,8 @@ MainWindow::MainWindow(QWidget* parent)
             return;
         }
         ModelPart* part = static_cast<ModelPart*>(index.internalPointer());
-        bool nowClipped = !part->getClip();  /* 切换当前状态 / Toggle current state */
+        bool nowClipped = !part->getClip();  /* 切换当前状态
+                                              * Toggle current state */
         std::function<void(ModelPart*, bool)> recurse = [&](ModelPart* p, bool en) {
             if (!p) return;
             p->setClip(en);
@@ -415,7 +424,8 @@ MainWindow::MainWindow(QWidget* parent)
      *      Light intensity slider connection ---- */
     connect(ui->sliderLightIntensity, &QSlider::valueChanged,
             this, &MainWindow::handleLightIntensityChanged);
-    ui->sliderLightIntensity->setValue(40);  /* 初始强度0.8(40/100*2.0) / Initial intensity 0.8 (40/100*2.0) */
+    ui->sliderLightIntensity->setValue(40);  /* 初始强度0.8(40/100*2.0)
+                                              * Initial intensity 0.8 (40/100*2.0) */
 
     /* ---- 初始化树视图和TreeModel
      *      Initialise tree view and tree model ---- */
@@ -468,13 +478,15 @@ MainWindow::MainWindow(QWidget* parent)
      *     Key light: front warm white, slider-controlled
      *   - 补光:侧后方冷蓝光,强度固定为主光的40%
      *     Fill light: side-rear cool blue, fixed at 40% of key */
-    renderer->AutomaticLightCreationOff();  /* 禁用VTK自动创建默认光源 / Disable VTK auto light creation */
+    renderer->AutomaticLightCreationOff();  /* 禁用VTK自动创建默认光源
+                                             * Disable VTK auto light creation */
 
     guiKeyLight = vtkSmartPointer<vtkLight>::New();
     guiKeyLight->SetLightTypeToSceneLight();
     guiKeyLight->SetPosition(1.0, 1.0, 1.0);
     guiKeyLight->SetFocalPoint(0.0, 0.0, 0.0);
-    guiKeyLight->SetDiffuseColor(1.0, 0.98, 0.95);  /* 暖白色 / Warm white */
+    guiKeyLight->SetDiffuseColor(1.0, 0.98, 0.95);  /* 暖白色
+                                                     * Warm white */
     guiKeyLight->SetAmbientColor(0.1, 0.1, 0.1);
     guiKeyLight->SetSpecularColor(1.0, 1.0, 1.0);
     guiKeyLight->SetIntensity(0.8);
@@ -484,10 +496,12 @@ MainWindow::MainWindow(QWidget* parent)
     guiFillLight->SetLightTypeToSceneLight();
     guiFillLight->SetPosition(-1.0, -0.5, -0.8);
     guiFillLight->SetFocalPoint(0.0, 0.0, 0.0);
-    guiFillLight->SetDiffuseColor(0.7, 0.85, 1.0);  /* 冷蓝色 / Cool blue */
+    guiFillLight->SetDiffuseColor(0.7, 0.85, 1.0);  /* 冷蓝色
+                                                     * Cool blue */
     guiFillLight->SetAmbientColor(0.0, 0.0, 0.0);
     guiFillLight->SetSpecularColor(0.5, 0.5, 0.5);
-    guiFillLight->SetIntensity(0.32);  /* 主光的40% / 40% of key light */
+    guiFillLight->SetIntensity(0.32);  /* 主光的40%
+                                        * 40% of key light */
     renderer->AddLight(guiFillLight);
 
     /* ---- 将statusUpdateMessage信号绑定到状态栏的showMessage槽
@@ -694,9 +708,11 @@ void MainWindow::handleLightIntensityChanged(int value)
         guiKeyLight->SetIntensity(intensity);
     }
     if (guiFillLight) {
-        guiFillLight->SetIntensity(intensity * 0.4);  /* 补光始终保持主光的40% / Fill always at 40% of key */
+        guiFillLight->SetIntensity(intensity * 0.4);  /* 补光始终保持主光的40%
+                                                       * Fill always at 40% of key */
     }
-    renderWindow->Render();  /* 立即刷新,桌面窗口可见光照变化 / Refresh immediately so GUI shows the change */
+    renderWindow->Render();  /* 立即刷新,桌面窗口可见光照变化
+                              * Refresh immediately so GUI shows the change */
 
     /* VR侧:通过命令队列同步到VR线程
      * VR side: sync to VR thread via command queue */
@@ -1043,7 +1059,8 @@ static void applyFilterAll(ModelPart* part, bool en,
                            void (ModelPart::*setter)(bool))
 {
     if (!part) return;
-    (part->*setter)(en);  /* 调用成员函数指针 / Call member function pointer */
+    (part->*setter)(en);  /* 调用成员函数指针
+                           * Call member function pointer */
     for (int i = 0; i < part->childCount(); ++i)
         applyFilterAll(part->child(i), en, setter);
 }
@@ -1205,7 +1222,8 @@ void MainWindow::on_actionOpen_Directory_triggered()
     std::function<ModelPart*(ModelPart*, const QStringList&, int)> ensurePath;
     ensurePath = [&](ModelPart* parent, const QStringList& parts, int depth) -> ModelPart*
     {
-        if (depth >= parts.size() - 1)  /* 最后一段是文件名,由调用者处理 / Last segment is filename, handled by caller */
+        if (depth >= parts.size() - 1)  /* 最后一段是文件名,由调用者处理
+                                         * Last segment is filename, handled by caller */
             return parent;
 
         const QString& seg = parts[depth];
