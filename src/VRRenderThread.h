@@ -48,6 +48,7 @@
 #include <vtkPlane.h>
 #include <vtkPropPicker.h>
 #include <vtkCellPicker.h>
+#include <vtkPicker.h>
 
 #include <vtkOpenVRRenderer.h>
 #include <vtkOpenVRRenderWindow.h>
@@ -583,7 +584,7 @@ private:
      *      VR controller picking state (used by 3D event callbacks) ---- */
     vtkOpenVRRenderer*              vrPickRenderer; /**< 场景启动时设置,供回调使用。
                                                      * Set at scene startup for callbacks. */
-    vtkSmartPointer<vtkPropPicker>  vrPicker;       /**< 三维射线拾取器。
+    vtkSmartPointer<vtkPicker>      vrPicker;       /**< 三维射线拾取器。
                                                      * 3-D ray picker. */
     double                          vrDragLastPos[3]; /**< 上一帧控制器位置。
                                                        * Controller position last frame. */

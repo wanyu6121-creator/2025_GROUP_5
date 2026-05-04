@@ -28,6 +28,7 @@
 #include "VRRenderThread.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <vtkNew.h>
 #include <vtkProperty.h>
 #include <vtkCamera.h>
@@ -494,6 +495,9 @@ void VRRenderThread::runVRMode()
      * 两者都要设置,否则手柄无射线输入。
      * Both must be set, otherwise controllers have no ray input. */
     QString bindingsDir  = QCoreApplication::applicationDirPath() + "/vrbindings";
+    if (!QDir(bindingsDir).exists()) {
+        bindingsDir = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("../vrbindings");
+    }
     QString manifestPath = bindingsDir + "/vtk_openvr_actions.json";
     interactor->SetActionManifestDirectory(bindingsDir.toStdString());
     interactor->SetActionManifestFileName(manifestPath.toStdString());
@@ -575,7 +579,8 @@ void VRRenderThread::runVRMode()
     /* 保存渲染器指针供成员函数回调使用
      * Save renderer pointer for member-function callbacks */
     vrPickRenderer = renderer.Get();
-    vrPicker = vtkSmartPointer<vtkPropPicker>::New();
+    vrPicker = vtkSmartPointer<vtkPicker>::New();
+    vrPicker->SetTolerance(0.025);
 
     /* Button3DEvent观察者:处理Trigger按下/释放和Grip按下
      * Button3DEvent observer: handle Trigger press/release and Grip press */
@@ -1056,10 +1061,17 @@ void VRRenderThread::onVRTriggerPress(vtkEventDataDevice3D* ed,
     double rayEnd[3] = { pos[0]+dir[0]*RAY, pos[1]+dir[1]*RAY, pos[2]+dir[2]*RAY };
     double p0[3]     = { pos[0], pos[1], pos[2] };
 
-    /* 三维射线与场景做相交测试
-     * Cast 3D ray against the scene */
-    vrPicker->Pick3DRay(p0, rayEnd, ren);
-    vtkActor* hit = vtkActor::SafeDownCast(vrPicker->GetProp3D());
+    /* 三维射线与模型Actor做相交测试。
+     * Pick3DPoint() accepts a start/end world segment; Pick3DRay() expects an orientation quaternion.
+     * Cast the 3D ray against model actors.
+     * Pick3DPoint() accepts a start/end world segment; Pick3DRay() expects an orientation quaternion. */
+    vrPicker->InitializePickList();
+    for (vtkActor* actor : actorList) {
+        if (actor) vrPicker->AddPickList(actor);
+    }
+    vrPicker->PickFromListOn();
+    vrPicker->Pick3DPoint(p0, rayEnd, ren);
+    vtkActor* hit = vrPicker->GetActor();
 
     /* 在actorList中查找命中的Actor
      * Look up the hit actor in actorList */
