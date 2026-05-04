@@ -1,8 +1,10 @@
-/**     @file ModelPartList.h
+/**     @file ModelPartList.cpp
   *
+  *     EEEE2076 - 软件工程与VR项目
   *     EEEE2076 - Software Engineering & VR Project
   *
-  *     Template for model part list that will be used to create the trewview.
+  *     ModelPartList树模型实现,用于创建树视图。
+  *     ModelPartList tree-model implementation used to create the tree view.
   *
   *     P Evans 2022
   */
@@ -11,8 +13,8 @@
 #include "ModelPart.h"
 
 ModelPartList::ModelPartList( const QString& data, QObject* parent ) : QAbstractItemModel(parent) {
-    /* Have option to specify number of visible properties for each item in tree - the root item
-     * acts as the column headers
+    /* 可以指定树中每个条目的可见属性数量;根条目充当列标题。
+     * Allows specifying the number of visible properties for each tree item; the root item acts as the column headers.
      */
     rootItem = new ModelPart( { tr("Part"), tr("Visible?"),tr("Red"),tr("Green"),tr("Blue") } );
 }
@@ -32,22 +34,27 @@ int ModelPartList::columnCount( const QModelIndex& parent ) const {
 
 
 QVariant ModelPartList::data( const QModelIndex& index, int role ) const {
-    /* If the item index isnt valid, return a new, empty QVariant (QVariant is generic datatype
-     * that could be any valid QT class) */
+    /* 如果条目索引无效,返回一个新的空 QVariant (QVariant 是可表示任何有效 Qt 类的通用数据类型)。
+     * If the item index is not valid, return a new empty QVariant (a generic data type that can represent any valid Qt class).
+     */
     if( !index.isValid() )
         return QVariant();
 
-    /* Role represents what this data will be used for, we only need deal with the case
-     * when QT is asking for data to create and display the treeview. Return a new,
-     * empty QVariant if any other request comes through. */
+    /* role 表示数据的用途;这里只有 Qt 请求用于创建和显示树视图的数据时才需要处理。
+     * role represents what this data will be used for; we only handle Qt requests for creating and displaying the tree view.
+     * 如果收到其他请求,返回一个新的空 QVariant。
+     * Return a new empty QVariant for any other request.
+     */
     if (role != Qt::DisplayRole)
         return QVariant();
 
-    /* Get a a pointer to the item referred to by the QModelIndex */
+    /* 获取 QModelIndex 所引用条目的指针。
+     * Get a pointer to the item referred to by the QModelIndex. */
     ModelPart* item = static_cast<ModelPart*>( index.internalPointer() );
 
-    /* Each item in the tree has a number of columns ("Part" and "Visible" in this 
-     * initial example) return the column requested by the QModelIndex */
+    /* 树中的每个条目都有多个列(初始示例中为 "Part" 和 "Visible"),返回 QModelIndex 请求的列。
+     * Each item in the tree has several columns ("Part" and "Visible" in the initial example); return the column requested by the QModelIndex.
+     */
     return item->data( index.column() );
 }
 
@@ -72,7 +79,8 @@ QModelIndex ModelPartList::index(int row, int column, const QModelIndex& parent)
     ModelPart* parentItem;
     
     if( !parent.isValid() || !hasIndex(row, column, parent) )
-        parentItem = rootItem;              // default to selecting root 
+        parentItem = rootItem;              /* 默认选择根节点。
+                                       * Default to selecting root. */
     else
         parentItem = static_cast<ModelPart*>(parent.internalPointer());
 
@@ -153,17 +161,21 @@ bool ModelPartList::removeItem( const QModelIndex& index )
     ModelPart* item       = static_cast<ModelPart*>( index.internalPointer() );
     ModelPart* parentItem = item->parentItem();
 
-    /* Refuse to delete the invisible root item */
+    /* 拒绝删除不可见的根条目。
+     * Refuse to delete the invisible root item. */
     if ( parentItem == nullptr )
         return false;
 
-    QModelIndex parentIndex = parent( index );   /* QAbstractItemModel::parent() */
+    QModelIndex parentIndex = parent( index );   /* 调用 QAbstractItemModel::parent()。
+                                             * Call QAbstractItemModel::parent(). */
     int row = item->row();
 
-    /* Notify the view that rows are about to be removed */
+    /* 通知视图即将移除行。
+     * Notify the view that rows are about to be removed. */
     beginRemoveRows( parentIndex, row, row );
 
-    /* Delete the node (ModelPart destructor recursively frees children) */
+    /* 删除节点(ModelPart 析构函数会递归释放子节点)。
+     * Delete the node (ModelPart destructor recursively frees children). */
     parentItem->removeChild( row );
 
     endRemoveRows();

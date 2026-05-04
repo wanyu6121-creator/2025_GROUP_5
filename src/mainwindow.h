@@ -84,7 +84,8 @@ public slots:
 
     /** updateRender()的递归辅助函数。
      *  Recursive helper for updateRender().
-     * @param index 当前处理的树节点 / Current tree node to process
+     * @param index 当前处理的树节点
+     * Current tree node to process
      */
     void updateRenderFromTree(const QModelIndex& index);
 
@@ -95,13 +96,15 @@ public slots:
      *  Toggle the clip filter on the selected part.
      *  若与Smooth同时激活则自动禁用Smooth(类型不匹配)。
      *  Disables Smooth automatically if both would be active (type mismatch).
-     * @param checked 复选框是否被勾选 / True if checkbox was just ticked
+     * @param checked 复选框是否被勾选
+     * True if checkbox was just ticked
      */
     void handleClipToggle(bool checked);
 
     /** 切换选中零件的收缩滤镜。
      *  Toggle the shrink filter on the selected part.
-     * @param checked 复选框是否被勾选 / True if checkbox was just ticked
+     * @param checked 复选框是否被勾选
+     * True if checkbox was just ticked
      */
     void handleShrinkToggle(bool checked);
 
@@ -109,27 +112,38 @@ public slots:
      *  Toggle the smooth filter (Laplacian, 20 iterations) on the selected part.
      *  若与Clip同时激活则自动禁用Clip(类型不匹配)。
      *  Disables Clip automatically if both would be active (type mismatch).
-     * @param checked 复选框是否被勾选 / True if checkbox was just ticked
+     * @param checked 复选框是否被勾选
+     * True if checkbox was just ticked
      */
     void handleSmoothToggle(bool checked);
 
     /** 切换选中零件的抽取滤镜(减少90%多边形)。
      *  Toggle the decimate filter (90% polygon reduction) on the selected part.
-     * @param checked 复选框是否被勾选 / True if checkbox was just ticked
+     * @param checked 复选框是否被勾选
+     * True if checkbox was just ticked
      */
     void handleDecimateToggle(bool checked);
 
     /** 切换选中零件的高度色彩滤镜(Z高度彩虹着色)。
      *  Toggle the elevation filter (Z-height rainbow colouring) on the selected part.
-     * @param checked 复选框是否被勾选 / True if checkbox was just ticked
+     * @param checked 复选框是否被勾选
+     * True if checkbox was just ticked
      */
     void handleElevationToggle(bool checked);
 
     /** 切换截面视图(创意功能)。
      *  Toggle the slice (cross-section) view (creative feature).
-     * @param checked 复选框是否被勾选 / True if checkbox was just ticked
+     * @param checked 复选框是否被勾选
+     * True if checkbox was just ticked
      */
     void handleSliceToggle(bool checked);
+
+    /** 切换爆炸视图,将所有已加载零件从场景中心向外分离。
+     *  Toggle exploded view, spreading all loaded parts away from the scene centre.
+     * @param checked 复选框是否被勾选
+     * @param checked True if checkbox was just ticked
+     */
+    void handleExplodedToggle(bool checked);
 
     /* ---- VR控制
      *      VR control ---- */
@@ -175,7 +189,8 @@ public slots:
      *  将滑块值(0-100)映射为光照强度(0.0-2.0),同时更新GUI渲染器和VR线程。
      *  Maps slider value (0-100) to intensity (0.0-2.0),
      *  updating both the GUI renderer and the VR thread.
-     * @param value 滑块当前值(0-100) / Slider value 0-100
+     * @param value 滑块当前值(0-100)
+     * Slider value 0-100
      */
     void handleLightIntensityChanged(int value);
 
@@ -191,8 +206,10 @@ public slots:
 signals:
     /** 发出此信号以在状态栏显示消息。
      *  Emitted to display a message in the status bar.
-     * @param message 要显示的文本 / Text to display
-     * @param timeout 显示时长(毫秒),0表示持续显示 / Duration in ms (0 = until next message)
+     * @param message 要显示的文本
+     * Text to display
+     * @param timeout 显示时长(毫秒),0表示持续显示
+     * Duration in ms (0 = until next message)
      */
     void statusUpdateMessage(const QString& message, int timeout);
 
@@ -203,29 +220,57 @@ private:
 
     /** populateVRActors()的递归辅助函数。
      *  Recursive helper for populateVRActors().
-     * @param index 当前树节点 / Current tree node
+     * @param index 当前树节点
+     * Current tree node
      */
     void populateVRActorsFromTree(const QModelIndex& index);
 
     /** 查找零件的VR Actor索引。
      *  Look up a part's VR actor index.
-     * @param part 要查找的ModelPart指针 / ModelPart pointer to look up
-     * @return Actor索引,未注册返回-1 / Actor index, or -1 if not registered
+     * @param part 要查找的ModelPart指针
+     * ModelPart pointer to look up
+     * @return Actor索引,未注册返回-1
+     * Actor index, or -1 if not registered
      */
     int getActorIndex(ModelPart* part) const;
 
-    Ui::MainWindow*                              ui;            /**< Qt生成的UI对象 / Qt-generated UI object */
-    ModelPartList*                               partList;      /**< 树模型 / Tree model */
-    vtkSmartPointer<vtkRenderer>                 renderer;      /**< GUI渲染器 / GUI renderer */
-    vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow; /**< Qt关联的渲染窗口 / Qt-linked render window */
+    /** 将一个零件子树的滤镜状态同步到VR线程。
+     *  Sync a filter state for a part subtree to the VR thread. */
+    void syncVRFilterRecursive(ModelPart* part, int filterType, bool enabled);
 
-    VRRenderThread*  vrThread;      /**< VR渲染线程,未运行时为nullptr / VR render thread, nullptr when not running */
-    bool             isVRRotating;  /**< 当前旋转动画状态 / Current rotation animation state */
+    /** 收集已加载STL的零件,用于爆炸视图。
+     *  Collect loaded STL parts for exploded view. */
+    void collectLoadedParts(ModelPart* part, QList<ModelPart*>& parts) const;
 
-    QMap<ModelPart*, int> actorIndexMap; /**< ModelPart指针到VR Actor索引的映射 / Maps ModelPart* to VR actor index */
+    /** 应用或取消GUI爆炸视图并同步到VR。
+     *  Apply or clear GUI exploded view and sync it to VR. */
+    void applyExplodedView(bool enabled);
 
-    vtkSmartPointer<vtkLight> guiKeyLight;  /**< 主光源(受滑块控制) / Main GUI light (slider-controlled) */
-    vtkSmartPointer<vtkLight> guiFillLight; /**< 补光(强度固定为主光的40%) / Fill light (fixed at 40% of key light) */
+    Ui::MainWindow*                              ui;            /**< Qt生成的UI对象
+                                                                 * Qt-generated UI object */
+    ModelPartList*                               partList;      /**< 树模型
+                                                                 * Tree model */
+    vtkSmartPointer<vtkRenderer>                 renderer;      /**< GUI渲染器
+                                                                 * GUI renderer */
+    vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow; /**< Qt关联的渲染窗口
+                                                                 * Qt-linked render window */
+
+    VRRenderThread*  vrThread;      /**< VR渲染线程,未运行时为nullptr
+                                     * VR render thread, nullptr when not running */
+    bool             isVRRotating;  /**< 当前旋转动画状态
+                                     * Current rotation animation state */
+
+    bool             isExploded;    /**< 爆炸视图是否启用
+                                     * Whether exploded view is enabled */
+
+    QMap<ModelPart*, int> actorIndexMap; /**< ModelPart指针到VR Actor索引的映射
+                                          * Maps ModelPart* to VR actor index */
+
+    vtkSmartPointer<vtkLight> guiKeyLight;  /**< 主光源(受滑块控制)
+                                             * Main GUI light (slider-controlled) */
+    vtkSmartPointer<vtkLight> guiFillLight; /**< 补光(强度固定为主光的40%)
+                                             * Fill light (fixed at 40% of key light) */
 };
 
-#endif // MAINWINDOW_H
+#endif /* 结束 MAINWINDOW_H 包含保护
+        * End MAINWINDOW_H include guard */

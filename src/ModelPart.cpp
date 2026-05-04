@@ -164,7 +164,8 @@ void ModelPart::loadSTL(QString fileName)
      *      STL reader ---- */
     file = vtkSmartPointer<vtkSTLReader>::New();
     file->SetFileName(fileName.toStdString().c_str());
-    file->Update();  /* 立即读取文件,使GetBounds()可用 / Read the file immediately so GetBounds() is available */
+    file->Update();  /* 立即读取文件,使GetBounds()可用
+                      * Read the file immediately so GetBounds() is available */
 
     /* ---- 滤镜1:裁剪(Clip)----
      *      Filter 1: Clip
@@ -173,17 +174,19 @@ void ModelPart::loadSTL(QString fileName)
      * The clip plane origin is set to the model's X-centre so the cut
      * always bisects the model regardless of its world position. */
     clipPlane = vtkSmartPointer<vtkPlane>::New();
-    clipPlane->SetOrigin(0.0, 0.0, 0.0);   /* setClip()会在启用时更新此值 / Updated in setClip() when enabled */
+    clipPlane->SetOrigin(0.0, 0.0, 0.0);   /* setClip()会在启用时更新此值
+                                            * Updated in setClip() when enabled */
     clipPlane->SetNormal(-1.0, 0.0, 0.0);
     clipFilter = vtkSmartPointer<vtkClipDataSet>::New();
     clipFilter->SetClipFunction(clipPlane.Get());
+    sliceFilter = vtkSmartPointer<vtkCutter>::New();
+    sliceFilter->SetCutFunction(clipPlane.Get());
 
     /* ---- 滤镜2:收缩(Shrink)----
      *      Filter 2: Shrink
-     * vtkShrinkPolyData将每个多边形面向其质心收缩,在面之间产生可见间隙。
-     * 系数0.6意味着每个面缩小到原始大小的60%。
-     * vtkShrinkPolyData pulls each polygon face toward its centroid,
-     * creating visible gaps between faces. Factor 0.6 = 60% of original size. */
+     * 收缩功能通过Actor变换缩放整个对象,避免将每个多边形单独拉开。
+     * The shrink feature scales the whole object via the actor transform,
+     * avoiding the per-polygon gaps produced by vtkShrinkPolyData. */
     shrinkFilter = vtkSmartPointer<vtkShrinkPolyData>::New();
     shrinkFilter->SetShrinkFactor(0.6);
 
@@ -195,8 +198,10 @@ void ModelPart::loadSTL(QString fileName)
     smoothFilter = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
     smoothFilter->SetNumberOfIterations(20);
     smoothFilter->SetRelaxationFactor(0.1);
-    smoothFilter->FeatureEdgeSmoothingOff();  /* 保留特征边 / Preserve feature edges */
-    smoothFilter->BoundarySmoothingOn();       /* 平滑边界 / Smooth boundary edges */
+    smoothFilter->FeatureEdgeSmoothingOff();  /* 保留特征边
+                                               * Preserve feature edges */
+    smoothFilter->BoundarySmoothingOn();       /* 平滑边界
+                                                * Smooth boundary edges */
 
     /* ---- 滤镜4:抽取(Decimate)----
      *      Filter 4: Decimate
@@ -209,8 +214,10 @@ void ModelPart::loadSTL(QString fileName)
     cleanFilter    = vtkSmartPointer<vtkCleanPolyData>::New();
     geometryFilter = vtkSmartPointer<vtkGeometryFilter>::New();
     decimateFilter = vtkSmartPointer<vtkDecimatePro>::New();
-    decimateFilter->SetTargetReduction(0.9);  /* 减少90%的多边形 / Reduce polygon count by 90% */
-    decimateFilter->PreserveTopologyOn();      /* 防止产生孔洞 / Prevent holes forming */
+    decimateFilter->SetTargetReduction(0.9);  /* 减少90%的多边形
+                                               * Reduce polygon count by 90% */
+    decimateFilter->PreserveTopologyOn();      /* 防止产生孔洞
+                                                * Prevent holes forming */
 
     /* ---- 滤镜5:高度色彩(Elevation)----
      *      Filter 5: Elevation
@@ -233,7 +240,8 @@ void ModelPart::loadSTL(QString fileName)
      * Rainbow lookup table: blue (low) -> red (high) */
     elevationLUT = vtkSmartPointer<vtkLookupTable>::New();
     elevationLUT->SetNumberOfTableValues(256);
-    elevationLUT->SetHueRange(0.667, 0.0);  /* 色相范围:蓝色(0.667)到红色(0.0) / Hue: blue (0.667) to red (0.0) */
+    elevationLUT->SetHueRange(0.667, 0.0);  /* 色相范围:蓝色(0.667)到红色(0.0)
+                                             * Hue: blue (0.667) to red (0.0) */
     elevationLUT->Build();
 
     /* ---- Mapper和Actor----
@@ -275,27 +283,36 @@ void ModelPart::updatePipeline()
 
     /* 裁剪滤镜:输出类型为UnstructuredGrid
      * Clip filter: output type is UnstructuredGrid */
+    bool currentIsPolyData = true;
+
     if (isClipped) {
         clipFilter->SetInputConnection(currentOutput);
         currentOutput = clipFilter->GetOutputPort();
+        currentIsPolyData = false;
     }
 
-    /* 收缩滤镜:输入和输出均为PolyData
-     * Shrink filter: input and output are both PolyData */
-    if (isShrunk) {
-        shrinkFilter->SetInputConnection(currentOutput);
-        currentOutput = shrinkFilter->GetOutputPort();
+    if (isSliced) {
+        sliceFilter->SetInputConnection(currentOutput);
+        currentOutput = sliceFilter->GetOutputPort();
+        currentIsPolyData = true;
     }
+
+    /* 收缩由Actor整体缩放处理,不再接入vtkShrinkPolyData管线。
+     * Shrink is handled by whole-actor scaling, so vtkShrinkPolyData is no longer wired in. */
 
     /* 平滑滤镜:仅接受PolyData输入。
-     * 如果之前有Clip滤镜,则输出为UnstructuredGrid,不能直接连接Smooth。
-     * 这种组合已被setClip()和setSmooth()在设置时自动禁止。
+     * 如果之前有Clip滤镜,先通过GeometryFilter转换类型。
      * Smooth filter: only accepts PolyData input.
-     * If Clip is active before it, output is UnstructuredGrid which Smooth cannot accept.
-     * This combination is automatically prevented by setClip() and setSmooth(). */
+     * If Clip is active first, GeometryFilter converts the data type. */
     if (isSmoothed) {
+        if (!currentIsPolyData) {
+            geometryFilter->SetInputConnection(currentOutput);
+            currentOutput = geometryFilter->GetOutputPort();
+            currentIsPolyData = true;
+        }
         smoothFilter->SetInputConnection(currentOutput);
         currentOutput = smoothFilter->GetOutputPort();
+        currentIsPolyData = true;
     }
 
     /* 抽取滤镜:需要经过GeometryFilter和CleanPolyData预处理。
@@ -305,10 +322,15 @@ void ModelPart::updatePipeline()
      * GeometryFilter converts any VTK dataset type to PolyData.
      * CleanPolyData merges duplicate points — a hard requirement for DecimatePro. */
     if (isDecimated) {
-        geometryFilter->SetInputConnection(currentOutput);
-        cleanFilter->SetInputConnection(geometryFilter->GetOutputPort());
+        if (!currentIsPolyData) {
+            geometryFilter->SetInputConnection(currentOutput);
+            cleanFilter->SetInputConnection(geometryFilter->GetOutputPort());
+        } else {
+            cleanFilter->SetInputConnection(currentOutput);
+        }
         decimateFilter->SetInputConnection(cleanFilter->GetOutputPort());
         currentOutput = decimateFilter->GetOutputPort();
+        currentIsPolyData = true;
     }
 
     /* 高度色彩滤镜:激活时启用彩虹色表,关闭时恢复Actor本身的颜色
@@ -356,32 +378,25 @@ void ModelPart::setClip(bool enabled)
         double xCentre = (bounds[0] + bounds[1]) * 0.5;
         clipPlane->SetOrigin(xCentre, 0.0, 0.0);
     }
-
-    /* Smooth滤镜要求PolyData输入,而Clip输出UnstructuredGrid,两者类型不兼容。
-     * 启用Clip时自动禁用Smooth,避免管线类型错误。
-     * Smooth requires PolyData input but Clip outputs UnstructuredGrid — type mismatch.
-     * Disable Smooth automatically when Clip is enabled to prevent pipeline errors. */
-    if (enabled && isSmoothed) {
-        isSmoothed = false;
-    }
     updatePipeline();
 }
 
 void ModelPart::setShrink(bool enabled)
 {
     isShrunk = enabled;
+    if (actor && file) {
+        double bounds[6];
+        file->GetOutput()->GetBounds(bounds);
+        actor->SetOrigin((bounds[0] + bounds[1]) * 0.5,
+                         (bounds[2] + bounds[3]) * 0.5,
+                         (bounds[4] + bounds[5]) * 0.5);
+        actor->SetScale(enabled ? 0.6 : 1.0);
+    }
     updatePipeline();
 }
 
 void ModelPart::setSmooth(bool enabled)
 {
-    /* Smooth与Clip不兼容(类型不匹配——见setClip注释)
-     * 启用Smooth时自动禁用Clip。
-     * Smooth is incompatible with Clip (type mismatch — see setClip comment).
-     * Disable Clip automatically when Smooth is enabled. */
-    if (enabled && isClipped) {
-        isClipped = false;
-    }
     isSmoothed = enabled;
     updatePipeline();
 }
@@ -429,16 +444,21 @@ vtkActor* ModelPart::getNewActor()
     vrClipPlane->SetNormal(-1.0, 0.0, 0.0);
     vtkSmartPointer<vtkClipDataSet> vrClip = vtkSmartPointer<vtkClipDataSet>::New();
     vrClip->SetClipFunction(vrClipPlane.Get());
+    vtkSmartPointer<vtkCutter> vrSlice = vtkSmartPointer<vtkCutter>::New();
+    vrSlice->SetCutFunction(vrClipPlane.Get());
 
     vtkSmartPointer<vtkShrinkPolyData> vrShrink = vtkSmartPointer<vtkShrinkPolyData>::New();
     vrShrink->SetShrinkFactor(0.6);
+
+    vtkSmartPointer<vtkGeometryFilter> vrGeometry = vtkSmartPointer<vtkGeometryFilter>::New();
+    vtkSmartPointer<vtkCleanPolyData> vrClean = vtkSmartPointer<vtkCleanPolyData>::New();
 
     vtkSmartPointer<vtkSmoothPolyDataFilter> vrSmooth = vtkSmartPointer<vtkSmoothPolyDataFilter>::New();
     vrSmooth->SetNumberOfIterations(20);
     vrSmooth->SetRelaxationFactor(0.1);
 
     vtkSmartPointer<vtkDecimatePro> vrDecimate = vtkSmartPointer<vtkDecimatePro>::New();
-    vrDecimate->SetTargetReduction(0.5);
+    vrDecimate->SetTargetReduction(0.9);
     vrDecimate->PreserveTopologyOn();
 
     double zMin = bounds[4], zMax = bounds[5];
@@ -457,22 +477,42 @@ vtkActor* ModelPart::getNewActor()
     /* 镜像当前GUI管线状态,构建与GUI完全相同的VR管线
      * Mirror the current GUI pipeline state to build an identical VR pipeline */
     vtkAlgorithmOutput* currentOutput = file->GetOutputPort();
+    bool currentIsPolyData = true;
 
     if (isClipped) {
         vrClip->SetInputConnection(currentOutput);
         currentOutput = vrClip->GetOutputPort();
+        currentIsPolyData = false;
+    }
+    if (isSliced) {
+        vrSlice->SetInputConnection(currentOutput);
+        currentOutput = vrSlice->GetOutputPort();
+        currentIsPolyData = true;
     }
     if (isShrunk) {
-        vrShrink->SetInputConnection(currentOutput);
-        currentOutput = vrShrink->GetOutputPort();
+        /* VR收缩同样通过Actor整体缩放完成。
+         * VR shrink is also handled through whole-actor scaling. */
     }
     if (isSmoothed) {
+        if (!currentIsPolyData) {
+            vrGeometry->SetInputConnection(currentOutput);
+            currentOutput = vrGeometry->GetOutputPort();
+            currentIsPolyData = true;
+        }
         vrSmooth->SetInputConnection(currentOutput);
         currentOutput = vrSmooth->GetOutputPort();
+        currentIsPolyData = true;
     }
     if (isDecimated) {
-        vrDecimate->SetInputConnection(currentOutput);
+        if (!currentIsPolyData) {
+            vrGeometry->SetInputConnection(currentOutput);
+            vrClean->SetInputConnection(vrGeometry->GetOutputPort());
+        } else {
+            vrClean->SetInputConnection(currentOutput);
+        }
+        vrDecimate->SetInputConnection(vrClean->GetOutputPort());
         currentOutput = vrDecimate->GetOutputPort();
+        currentIsPolyData = true;
     }
     if (isElevated) {
         vrElevation->SetInputConnection(currentOutput);
@@ -492,6 +532,10 @@ vtkActor* ModelPart::getNewActor()
     /* 共享vtkProperty:GUI侧的颜色修改会自动反映到VR Actor
      * Share the vtkProperty so colour changes in GUI propagate to VR automatically */
     newActor->SetProperty(actor->GetProperty());
+    newActor->SetOrigin((bounds[0] + bounds[1]) * 0.5,
+                        (bounds[2] + bounds[3]) * 0.5,
+                        (bounds[4] + bounds[5]) * 0.5);
+    newActor->SetScale(isShrunk ? 0.6 : 1.0);
     newActor->SetVisibility(isVisible ? 1 : 0);
 
     return newActor;
