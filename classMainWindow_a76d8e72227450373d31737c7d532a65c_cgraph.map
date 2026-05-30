@@ -1,0 +1,14 @@
+<map id="MainWindow::handleSmoothToggle" name="MainWindow::handleSmoothToggle">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,78,212,118"/>
+<area shape="rect" id="Node000002" href="$classModelPartList.html#a1b6e2e108802afbc45e4bd054dccf982" title=" " alt="" coords="512,113,711,139"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="212,88,333,85,464,91,551,107,550,113,464,97,333,90,212,93"/>
+<area shape="rect" id="Node000003" href="$classModelPart.html#a171bf1489820dac90f59cf2cf8d9151e" title=" " alt="" coords="279,5,445,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="172,75,259,47,307,32,308,37,261,53,174,80"/>
+<area shape="rect" id="Node000005" href="$classMainWindow.html#a86443ea744fda3e9bad328c2fd1c3d6b" title=" " alt="" coords="262,106,462,146"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="213,107,249,111,248,116,212,112"/>
+<area shape="rect" id="Node000006" href="$classMainWindow.html#aa2a5945f9c4bf90022f0a7ad3db34c49" title=" " alt="" coords="260,171,464,196"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="157,116,261,155,292,165,290,170,259,161,155,121"/>
+<area shape="rect" id="Node000004" href="$classModelPart.html#a05bc0dd06a3658d9a2c46fa717dec910" title=" " alt="" coords="552,5,671,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="445,15,538,15,538,21,445,21"/>
+<area shape="poly" id="edge6_Node000006_Node000002" title=" " alt="" coords="417,168,541,139,543,144,419,173"/>
+</map>

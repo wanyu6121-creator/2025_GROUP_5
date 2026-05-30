@@ -1,0 +1,7 @@
+<map id="MainWindow::handleLightIntensityChanged" name="MainWindow::handleLightIntensityChanged">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,27,252,67"/>
+<area shape="rect" id="Node000002" href="$classVRRenderThread.html#a8235af38403468ded326ec3e20dabc07" title="向VR线程发送命令(线程安全,可从任意线程调用)" alt="" coords="300,5,540,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="252,32,286,29,287,34,252,38"/>
+<area shape="rect" id="Node000003" href="$classMainWindow.html#a86443ea744fda3e9bad328c2fd1c3d6b" title=" " alt="" coords="320,55,520,95"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="252,57,307,62,306,67,252,62"/>
+</map>

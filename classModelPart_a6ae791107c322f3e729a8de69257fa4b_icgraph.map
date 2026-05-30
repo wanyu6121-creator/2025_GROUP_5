@@ -1,0 +1,11 @@
+<map id="ModelPart::visible" name="ModelPart::visible">
+<area shape="rect" id="Node000001" title=" " alt="" coords="539,42,677,67"/>
+<area shape="rect" id="Node000002" href="$classMainWindow.html#aff47be4b5045aefc0d9f4d66dea15d29" title=" " alt="" coords="272,5,479,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="525,47,479,41,479,36,525,42"/>
+<area shape="rect" id="Node000004" href="$classMainWindow.html#a143bb60757a3e3f88e208eedb2af7539" title=" " alt="" coords="260,70,491,95"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="525,67,481,73,481,67,525,62"/>
+<area shape="rect" id="Node000003" href="$classMainWindow.html#ad3d17973d3111f1ba9805217b6ab58cf" title=" " alt="" coords="5,5,212,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="258,28,212,28,212,23,258,23"/>
+<area shape="rect" id="Node000005" href="$classMainWindow.html#a996c5a2b6f77944776856f08ec30858d" title=" " alt="" coords="10,70,207,95"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="246,85,207,85,207,80,246,80"/>
+</map>

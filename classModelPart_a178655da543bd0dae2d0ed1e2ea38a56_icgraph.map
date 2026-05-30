@@ -1,0 +1,21 @@
+<map id="ModelPart::data" name="ModelPart::data">
+<area shape="rect" id="Node000001" title=" " alt="" coords="543,131,667,156"/>
+<area shape="rect" id="Node000002" href="$classModelPartList.html#a60923d947a2eafb5dfabe1cf8461807e" title=" " alt="" coords="304,5,451,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="583,122,544,81,520,61,494,44,450,29,452,24,496,40,523,57,548,77,587,118"/>
+<area shape="rect" id="Node000004" href="$classMainWindow.html#a85a18d25a028754af4558eaef89de3bf" title=" " alt="" coords="260,55,495,80"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="561,128,494,102,429,83,431,78,496,97,563,123"/>
+<area shape="rect" id="Node000005" href="$classMainWindow.html#a996c5a2b6f77944776856f08ec30858d" title=" " alt="" coords="10,105,207,131"/>
+<area shape="poly" id="edge10_Node000001_Node000005" title=" " alt="" coords="528,142,207,126,207,120,529,137"/>
+<area shape="rect" id="Node000006" href="$classMainWindow.html#aff47be4b5045aefc0d9f4d66dea15d29" title=" " alt="" coords="274,206,481,246"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="568,165,496,196,459,208,458,203,494,192,566,160"/>
+<area shape="rect" id="Node000008" href="$classMainWindow.html#a143bb60757a3e3f88e208eedb2af7539" title=" " alt="" coords="262,156,493,181"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="529,154,491,159,491,153,529,149"/>
+<area shape="rect" id="Node000009" href="$classModelPartList.html#a6a54464c7907f0c18c2f5edd7cb4a51e" title=" " alt="" coords="280,271,475,296"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="589,169,551,216,525,240,496,260,466,273,464,268,493,256,522,236,547,212,585,166"/>
+<area shape="rect" id="Node000003" href="$classModelPartList.html#ac687a2942c6e8b8b23df36c32a0deaeb" title=" " alt="" coords="9,5,208,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="290,21,208,21,208,15,290,15"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="297,85,177,108,176,103,296,80"/>
+<area shape="rect" id="Node000007" href="$classMainWindow.html#ad3d17973d3111f1ba9805217b6ab58cf" title=" " alt="" coords="5,206,212,246"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="261,229,212,229,212,223,261,223"/>
+<area shape="poly" id="edge8_Node000008_Node000005" title=" " alt="" coords="296,156,176,133,177,128,297,151"/>
+</map>

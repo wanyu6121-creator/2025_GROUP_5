@@ -1,0 +1,11 @@
+<map id="ModelPart::childCount" name="ModelPart::childCount">
+<area shape="rect" id="Node000001" title=" " alt="" coords="531,55,695,80"/>
+<area shape="rect" id="Node000002" href="$classMainWindow.html#a3365076fadbdb733cf7d52e6dd94d4e5" title=" " alt="" coords="252,5,483,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="535,55,431,33,432,28,536,49"/>
+<area shape="rect" id="Node000003" href="$classMainWindow.html#a996c5a2b6f77944776856f08ec30858d" title=" " alt="" coords="269,55,466,80"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="517,70,466,70,466,65,517,65"/>
+<area shape="rect" id="Node000004" href="$classModelPartList.html#a05d52c5cac09750d28ad041ec6a3d5ab" title=" " alt="" coords="277,104,457,129"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="536,85,432,107,431,101,535,80"/>
+<area shape="rect" id="Node000005" href="$classModelPartList.html#ac687a2942c6e8b8b23df36c32a0deaeb" title=" " alt="" coords="5,104,204,129"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="264,119,204,119,204,114,264,114"/>
+</map>

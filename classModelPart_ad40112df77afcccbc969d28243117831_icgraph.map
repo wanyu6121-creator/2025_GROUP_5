@@ -1,0 +1,9 @@
+<map id="ModelPart::getNewActor" name="ModelPart::getNewActor">
+<area shape="rect" id="Node000001" title=" " alt="" coords="509,45,688,70"/>
+<area shape="rect" id="Node000002" href="$classMainWindow.html#ac9f8cda19b50031449774e3f5f95d5b2" title=" " alt="" coords="251,5,461,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="496,46,461,42,462,37,496,41"/>
+<area shape="rect" id="Node000003" href="$classMainWindow.html#a3a4866823ec0a9148c03ade962e65cf3" title=" " alt="" coords="251,69,461,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="496,73,462,78,461,73,496,68"/>
+<area shape="rect" id="Node000004" href="$classMainWindow.html#a996c5a2b6f77944776856f08ec30858d" title=" " alt="" coords="5,77,203,102"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="237,92,203,92,203,87,237,87"/>
+</map>

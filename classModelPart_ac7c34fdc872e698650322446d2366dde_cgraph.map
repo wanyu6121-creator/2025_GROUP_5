@@ -1,0 +1,8 @@
+<map id="ModelPart::removeChild" name="ModelPart::removeChild">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,184,56"/>
+<area shape="rect" id="Node000002" href="$classModelPart.html#af32381b69415f0aa6bdfd84435f842cc" title=" " alt="" coords="232,5,359,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="184,29,218,25,219,30,185,35"/>
+<area shape="rect" id="Node000003" href="$classModelPart.html#a05bc0dd06a3658d9a2c46fa717dec910" title=" " alt="" coords="407,31,525,56"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="184,41,393,41,393,46,184,46"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="359,25,393,30,393,35,358,30"/>
+</map>

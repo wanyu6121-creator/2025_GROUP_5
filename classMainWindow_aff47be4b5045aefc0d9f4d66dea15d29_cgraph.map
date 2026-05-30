@@ -1,0 +1,40 @@
+<map id="MainWindow::handleOptionsButton" name="MainWindow::handleOptionsButton">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,369,212,409"/>
+<area shape="rect" id="Node000002" href="$classModelPart.html#a178655da543bd0dae2d0ed1e2ea38a56" title=" " alt="" coords="318,5,442,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="110,368,121,304,146,214,166,167,190,120,221,77,258,40,280,27,304,19,305,24,282,32,262,44,225,80,195,123,171,169,151,216,126,305,115,369"/>
+<area shape="rect" id="Node000004" href="$classOptionDialog.html#ad709f1ce05cf6c9865ec86ff1e786172" title=" " alt="" coords="307,55,453,80"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="111,368,126,312,153,236,173,195,196,156,225,120,258,89,293,72,295,77,262,94,229,124,201,159,177,198,158,238,131,313,116,369"/>
+<area shape="rect" id="Node000005" href="$classModelPart.html#a2cae1e4fd951f1a5f62b93a7f9c68521" title=" " alt="" coords="297,104,463,129"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="113,367,131,320,160,257,202,193,229,163,259,138,282,126,285,131,261,143,232,167,207,196,165,260,136,322,119,369"/>
+<area shape="rect" id="Node000006" href="$classModelPart.html#a3ddfad7df9c628e07f1f5e50a47d41d3" title=" " alt="" coords="296,153,464,179"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="117,367,137,328,168,279,209,229,232,207,259,188,282,176,284,181,261,192,236,211,212,233,172,282,141,331,121,370"/>
+<area shape="rect" id="Node000007" href="$classModelPart.html#af2c1b405404cdb46d45a804838440e3a" title=" " alt="" coords="297,203,463,228"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="122,367,176,302,215,266,259,237,282,227,284,232,261,242,218,271,180,306,126,370"/>
+<area shape="rect" id="Node000008" href="$classOptionDialog.html#aa13b4192a6ba1e8881868abc65d202b1" title=" " alt="" coords="307,252,453,277"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="132,366,188,325,222,304,259,286,292,275,294,280,261,291,225,309,191,330,135,371"/>
+<area shape="rect" id="Node000009" href="$classOptionDialog.html#a9d01b5315c8ebace84597069be6279ca" title=" " alt="" coords="285,301,475,327"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="163,366,259,335,294,327,295,332,261,341,165,371"/>
+<area shape="rect" id="Node000010" href="$classOptionDialog.html#ace0af27c027082ead61b1e13dc32730e" title=" " alt="" coords="293,351,467,376"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="212,376,279,370,279,375,213,382"/>
+<area shape="rect" id="Node000011" href="$classOptionDialog.html#ac9ed4cca255b1dee256bb2ad30936b1e" title=" " alt="" coords="307,400,453,425"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="213,395,294,402,293,408,212,400"/>
+<area shape="rect" id="Node000012" href="$classVRRenderThread.html#a8235af38403468ded326ec3e20dabc07" title="向VR线程发送命令(线程安全,可从任意线程调用)" alt="" coords="260,449,500,475"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="169,406,261,434,301,444,299,449,259,439,167,411"/>
+<area shape="rect" id="Node000013" href="$classModelPart.html#a3232893d070ddcec42631bf5b043add8" title=" " alt="" coords="323,499,437,524"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="136,407,192,446,261,484,310,498,308,503,259,488,189,451,133,411"/>
+<area shape="rect" id="Node000014" href="$classModelPart.html#abbaaa19d7d24b9f1138072d594bd838c" title=" " alt="" coords="301,548,459,573"/>
+<area shape="poly" id="edge14_Node000001_Node000014" title=" " alt="" coords="127,407,181,470,219,505,261,533,289,544,287,549,259,538,216,509,177,474,122,411"/>
+<area shape="rect" id="Node000015" href="$classOptionDialog.html#a375fe60ce820e6b70f3854cfa48d7c45" title="使用当前零件属性预填对话框。" alt="" coords="279,597,481,623"/>
+<area shape="poly" id="edge16_Node000001_Node000015" title=" " alt="" coords="122,408,142,446,173,494,213,542,236,564,261,582,275,590,273,595,259,587,233,568,209,546,169,497,138,449,117,410"/>
+<area shape="rect" id="Node000016" href="$classModelPart.html#a96c8cca32bd530bf28c6ab6a1ccc2353" title=" " alt="" coords="301,647,459,672"/>
+<area shape="poly" id="edge17_Node000001_Node000016" title=" " alt="" coords="119,408,136,455,165,516,207,579,233,608,261,632,288,645,286,650,259,636,229,611,203,582,161,519,131,457,114,410"/>
+<area shape="rect" id="Node000017" href="$classMainWindow.html#a86443ea744fda3e9bad328c2fd1c3d6b" title=" " alt="" coords="280,697,480,737"/>
+<area shape="poly" id="edge19_Node000001_Node000017" title=" " alt="" coords="117,408,132,463,160,537,179,576,203,615,230,650,262,681,270,688,267,692,258,685,226,654,198,618,175,579,155,539,127,465,112,410"/>
+<area shape="rect" id="Node000018" href="$classModelPart.html#a6ae791107c322f3e729a8de69257fa4b" title=" " alt="" coords="311,761,449,787"/>
+<area shape="poly" id="edge20_Node000001_Node000018" title=" " alt="" coords="115,408,125,474,150,567,169,616,194,664,224,709,262,747,279,758,298,765,296,770,276,762,258,751,220,712,189,667,164,618,145,568,120,475,109,409"/>
+<area shape="rect" id="Node000003" href="$classModelPart.html#a05bc0dd06a3658d9a2c46fa717dec910" title=" " alt="" coords="548,524,667,549"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="443,15,474,23,502,40,526,76,546,130,563,195,577,266,597,407,607,510,601,511,592,408,572,267,558,196,541,131,521,79,498,44,472,28,442,20"/>
+<area shape="poly" id="edge13_Node000013_Node000003" title=" " alt="" coords="438,515,535,526,534,531,437,520"/>
+<area shape="poly" id="edge15_Node000014_Node000003" title=" " alt="" coords="459,550,534,542,535,547,460,555"/>
+<area shape="poly" id="edge18_Node000016_Node000003" title=" " alt="" coords="458,646,499,632,524,616,548,597,585,558,589,562,551,601,527,620,501,636,460,651"/>
+</map>

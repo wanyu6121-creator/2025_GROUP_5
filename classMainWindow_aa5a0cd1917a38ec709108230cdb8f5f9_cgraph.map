@@ -1,0 +1,7 @@
+<map id="MainWindow::handleStopRotate" name="MainWindow::handleStopRotate">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,35,235,60"/>
+<area shape="rect" id="Node000002" href="$classVRRenderThread.html#a8235af38403468ded326ec3e20dabc07" title="向VR线程发送命令(线程安全,可从任意线程调用)" alt="" coords="283,5,523,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="235,33,269,29,269,35,235,38"/>
+<area shape="rect" id="Node000003" href="$classMainWindow.html#a86443ea744fda3e9bad328c2fd1c3d6b" title=" " alt="" coords="303,55,503,95"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="235,56,289,61,289,67,235,61"/>
+</map>

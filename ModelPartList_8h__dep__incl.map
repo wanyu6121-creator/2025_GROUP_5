@@ -1,0 +1,11 @@
+<map id="src/ModelPartList.h" name="src/ModelPartList.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="99,5,245,31"/>
+<area shape="rect" id="Node000002" href="$ModelPartList_8cpp.html" title=" " alt="" coords="5,79,165,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="149,41,101,81,98,76,146,37"/>
+<area shape="rect" id="Node000003" href="$mainwindow_8h.html" title=" " alt="" coords="189,79,328,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="198,37,246,76,243,81,195,41"/>
+<area shape="rect" id="Node000004" href="$main_8cpp.html" title=" " alt="" coords="129,152,234,177"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="238,115,196,154,192,150,234,111"/>
+<area shape="rect" id="Node000005" href="$mainwindow_8cpp.html" title=" " alt="" coords="257,152,412,177"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="283,111,324,150,320,154,279,115"/>
+</map>

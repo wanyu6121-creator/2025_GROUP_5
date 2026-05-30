@@ -1,0 +1,5 @@
+<map id="VRRenderThread::vrActorSelected" name="VRRenderThread::vrActorSelected">
+<area shape="rect" id="Node000001" title="【B方案】VR内选中/取消选中零件时发出,通知GUI更新状态栏" alt="" coords="251,5,493,31"/>
+<area shape="rect" id="Node000002" href="$classMainWindow.html#a996c5a2b6f77944776856f08ec30858d" title=" " alt="" coords="5,5,203,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="237,21,203,21,203,15,237,15"/>
+</map>

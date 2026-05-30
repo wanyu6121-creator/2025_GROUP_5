@@ -1,0 +1,42 @@
+<map id="MainWindow::on_actionItem_Options_triggered" name="MainWindow::on_actionItem_Options_triggered">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,369,212,409"/>
+<area shape="rect" id="Node000002" href="$classMainWindow.html#aff47be4b5045aefc0d9f4d66dea15d29" title=" " alt="" coords="260,369,467,409"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="212,386,246,386,246,391,212,391"/>
+<area shape="rect" id="Node000003" href="$classModelPart.html#a178655da543bd0dae2d0ed1e2ea38a56" title=" " alt="" coords="573,5,697,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="364,368,376,304,401,214,420,167,445,120,476,77,513,40,535,27,558,19,560,24,537,32,516,44,480,80,450,123,425,169,406,216,381,305,370,369"/>
+<area shape="rect" id="Node000005" href="$classOptionDialog.html#ad709f1ce05cf6c9865ec86ff1e786172" title=" " alt="" coords="562,55,707,80"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="366,368,380,312,408,236,427,195,451,156,480,120,513,89,547,72,550,77,516,94,483,124,455,159,432,198,413,238,385,313,371,369"/>
+<area shape="rect" id="Node000006" href="$classModelPart.html#a2cae1e4fd951f1a5f62b93a7f9c68521" title=" " alt="" coords="551,104,718,129"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="368,367,385,320,415,257,457,193,483,163,513,138,537,126,539,131,516,143,487,167,461,196,419,260,390,322,373,369"/>
+<area shape="rect" id="Node000007" href="$classModelPart.html#a3ddfad7df9c628e07f1f5e50a47d41d3" title=" " alt="" coords="551,153,719,179"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="371,367,392,328,422,279,463,229,487,207,513,188,537,176,539,181,516,192,491,211,467,233,427,282,396,331,376,370"/>
+<area shape="rect" id="Node000008" href="$classModelPart.html#af2c1b405404cdb46d45a804838440e3a" title=" " alt="" coords="551,203,718,228"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="377,367,431,302,470,266,513,237,537,227,539,232,516,242,473,271,435,306,381,370"/>
+<area shape="rect" id="Node000009" href="$classOptionDialog.html#aa13b4192a6ba1e8881868abc65d202b1" title=" " alt="" coords="561,252,708,277"/>
+<area shape="poly" id="edge8_Node000002_Node000009" title=" " alt="" coords="387,366,442,325,477,304,514,286,547,275,549,280,516,291,480,309,445,330,390,371"/>
+<area shape="rect" id="Node000010" href="$classOptionDialog.html#a9d01b5315c8ebace84597069be6279ca" title=" " alt="" coords="539,301,730,327"/>
+<area shape="poly" id="edge9_Node000002_Node000010" title=" " alt="" coords="418,366,514,335,549,327,550,332,515,341,419,371"/>
+<area shape="rect" id="Node000011" href="$classOptionDialog.html#ace0af27c027082ead61b1e13dc32730e" title=" " alt="" coords="547,351,722,376"/>
+<area shape="poly" id="edge10_Node000002_Node000011" title=" " alt="" coords="467,376,533,370,534,375,467,382"/>
+<area shape="rect" id="Node000012" href="$classOptionDialog.html#ac9ed4cca255b1dee256bb2ad30936b1e" title=" " alt="" coords="562,400,707,425"/>
+<area shape="poly" id="edge11_Node000002_Node000012" title=" " alt="" coords="467,395,548,402,548,408,467,400"/>
+<area shape="rect" id="Node000013" href="$classVRRenderThread.html#a8235af38403468ded326ec3e20dabc07" title="向VR线程发送命令(线程安全,可从任意线程调用)" alt="" coords="515,449,755,475"/>
+<area shape="poly" id="edge12_Node000002_Node000013" title=" " alt="" coords="423,406,515,434,555,444,554,449,514,439,422,411"/>
+<area shape="rect" id="Node000014" href="$classModelPart.html#a3232893d070ddcec42631bf5b043add8" title=" " alt="" coords="577,499,692,524"/>
+<area shape="poly" id="edge13_Node000002_Node000014" title=" " alt="" coords="391,407,446,446,516,484,564,498,563,503,514,488,444,451,388,411"/>
+<area shape="rect" id="Node000015" href="$classModelPart.html#abbaaa19d7d24b9f1138072d594bd838c" title=" " alt="" coords="556,548,713,573"/>
+<area shape="poly" id="edge15_Node000002_Node000015" title=" " alt="" coords="381,407,436,470,473,505,516,533,544,544,541,549,513,538,470,509,432,474,377,411"/>
+<area shape="rect" id="Node000016" href="$classOptionDialog.html#a375fe60ce820e6b70f3854cfa48d7c45" title="使用当前零件属性预填对话框。" alt="" coords="533,597,736,623"/>
+<area shape="poly" id="edge17_Node000002_Node000016" title=" " alt="" coords="376,408,397,446,428,494,468,542,491,564,516,582,530,590,528,595,513,587,487,568,464,546,423,497,392,449,372,410"/>
+<area shape="rect" id="Node000017" href="$classModelPart.html#a96c8cca32bd530bf28c6ab6a1ccc2353" title=" " alt="" coords="555,647,714,672"/>
+<area shape="poly" id="edge18_Node000002_Node000017" title=" " alt="" coords="373,408,391,455,420,516,462,579,487,608,516,632,543,645,540,650,513,636,484,611,457,582,415,519,386,457,368,410"/>
+<area shape="rect" id="Node000018" href="$classMainWindow.html#a86443ea744fda3e9bad328c2fd1c3d6b" title=" " alt="" coords="535,697,735,737"/>
+<area shape="poly" id="edge20_Node000002_Node000018" title=" " alt="" coords="372,408,387,463,415,537,434,576,457,615,485,650,516,681,525,688,522,692,513,685,481,654,453,618,429,579,410,539,382,465,366,410"/>
+<area shape="rect" id="Node000019" href="$classModelPart.html#a6ae791107c322f3e729a8de69257fa4b" title=" " alt="" coords="565,761,704,787"/>
+<area shape="poly" id="edge21_Node000002_Node000019" title=" " alt="" coords="369,408,380,474,404,567,424,616,448,664,479,709,516,747,533,758,553,765,551,770,531,762,513,751,475,712,444,667,419,618,399,568,375,475,364,409"/>
+<area shape="rect" id="Node000004" href="$classModelPart.html#a05bc0dd06a3658d9a2c46fa717dec910" title=" " alt="" coords="803,524,921,549"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="698,15,729,23,757,40,781,76,801,130,818,195,832,266,852,407,861,510,856,511,846,408,827,267,813,196,796,131,776,79,753,44,727,28,697,20"/>
+<area shape="poly" id="edge14_Node000014_Node000004" title=" " alt="" coords="692,515,789,526,789,531,692,520"/>
+<area shape="poly" id="edge16_Node000015_Node000004" title=" " alt="" coords="714,550,789,542,789,547,714,555"/>
+<area shape="poly" id="edge19_Node000017_Node000004" title=" " alt="" coords="713,646,753,632,779,616,802,597,840,558,844,562,806,601,782,620,756,636,715,651"/>
+</map>

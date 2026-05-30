@@ -1,0 +1,14 @@
+<map id="MainWindow::handleShrinkToggle" name="MainWindow::handleShrinkToggle">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,78,204,118"/>
+<area shape="rect" id="Node000002" href="$classModelPartList.html#a1b6e2e108802afbc45e4bd054dccf982" title=" " alt="" coords="504,113,703,139"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,88,325,85,456,91,543,107,542,113,456,97,325,90,204,93"/>
+<area shape="rect" id="Node000003" href="$classModelPart.html#ae514959c97e48915f2f82dfa4abe3f65" title=" " alt="" coords="276,5,432,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="166,75,251,47,299,32,300,37,253,53,168,80"/>
+<area shape="rect" id="Node000005" href="$classMainWindow.html#a86443ea744fda3e9bad328c2fd1c3d6b" title=" " alt="" coords="254,106,454,146"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="204,106,240,111,240,116,204,112"/>
+<area shape="rect" id="Node000006" href="$classMainWindow.html#aa2a5945f9c4bf90022f0a7ad3db34c49" title=" " alt="" coords="252,171,456,196"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="151,116,253,155,284,165,282,170,251,161,149,121"/>
+<area shape="rect" id="Node000004" href="$classModelPart.html#a05bc0dd06a3658d9a2c46fa717dec910" title=" " alt="" coords="544,5,663,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="432,15,530,15,530,21,432,21"/>
+<area shape="poly" id="edge6_Node000006_Node000002" title=" " alt="" coords="409,168,533,139,535,144,411,173"/>
+</map>

@@ -1,0 +1,7 @@
+<map id="MainWindow::handleViewRight" name="MainWindow::handleViewRight">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,35,228,60"/>
+<area shape="rect" id="Node000002" href="$classVRRenderThread.html#a8235af38403468ded326ec3e20dabc07" title="向VR线程发送命令(线程安全,可从任意线程调用)" alt="" coords="276,5,516,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="228,33,262,29,263,35,228,38"/>
+<area shape="rect" id="Node000003" href="$classMainWindow.html#a86443ea744fda3e9bad328c2fd1c3d6b" title=" " alt="" coords="296,55,496,95"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="228,56,282,61,282,67,228,61"/>
+</map>
